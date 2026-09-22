@@ -1,7 +1,7 @@
 .DS_Store
 .dart_tool/
 .packages
-build/
+/build/
 pubspec.lock
 
 # deploykit ishlash holati va maxfiy qiymatlar
