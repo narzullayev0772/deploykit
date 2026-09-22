@@ -1,0 +1,10 @@
+.DS_Store
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# deploykit ishlash holati va maxfiy qiymatlar
+.env
+.deploykit/
+.last_build_number
