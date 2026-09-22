@@ -81,7 +81,7 @@ class Preflight {
         'integrations.play.service_account',
       ),
       if (needIos) _keyFile(
-        'App Store .p8 kaliti',
+        'App Store .p8 key',
         config.integrations.appStore?.privateKey,
         'integrations.app_store.private_key',
       ),
