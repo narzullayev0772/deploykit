@@ -8,3 +8,6 @@ pubspec.lock
 .env
 .deploykit/
 .last_build_number
+
+# Internal planning documents — reference another project, kept local only
+docs/
