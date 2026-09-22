@@ -1,3 +1,7 @@
+## 0.1.1
+
+- Point `homepage` at the project site on GitHub Pages.
+
 ## 0.1.0
 
 First release.
