@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>deploykit · Flutter deploys from one deploy.yaml</title>
+<meta name="description" content="Deploy Flutter apps to Google Play and App Store Connect from a single deploy.yaml. A Dart CLI with no Python, no virtualenv and no fastlane.">
+<link rel="canonical" href="https://narzullayev0772.github.io/deploykit/">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://narzullayev0772.github.io/deploykit/">
+<meta property="og:title" content="deploykit">
+<meta property="og:description" content="Deploy Flutter apps to Google Play and App Store Connect from a single deploy.yaml. A Dart CLI with no Python, no virtualenv and no fastlane.">
+<meta name="twitter:card" content="summary">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* Baseline the Artifact runtime used to provide; needed standalone. */
+  :root {
+    color-scheme: light dark;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+
+  :root {
+    --ground:   #F2F4F3;
+    --surface:  #FFFFFF;
+    --sunken:   #E7EBE9;
+    --ink:      #101816;
+    --muted:    #59645F;
+    --faint:    #7C8782;
+    --line:     #D7DEDA;
+    --line-soft:#E4E9E6;
+    --accent:   #0B5670;
+    --accent-2: #F0F6F8;
+    --pass:     #1F7A4D;
+    --warn:     #8A5E0C;
+    --fail:     #A32F26;
+    --term-bg:  #101A1E;
+    --term-ink: #CBD8DC;
+    --term-dim: #6E8189;
+
+    --sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --cond: 'IBM Plex Sans Condensed', 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:   #0E1413;
+      --surface:  #161E1C;
+      --sunken:   #1B2422;
+      --ink:      #E7EDEB;
+      --muted:    #9AA7A2;
+      --faint:    #7C8985;
+      --line:     #27302E;
+      --line-soft:#1F2826;
+      --accent:   #68C4DE;
+      --accent-2: #14262C;
+      --pass:     #55BE86;
+      --warn:     #D2A143;
+      --fail:     #E8766A;
+      --term-bg:  #0A1113;
+      --term-ink: #C6D4D8;
+      --term-dim: #64767D;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:   #0E1413;
+    --surface:  #161E1C;
+    --sunken:   #1B2422;
+    --ink:      #E7EDEB;
+    --muted:    #9AA7A2;
+    --faint:    #7C8985;
+    --line:     #27302E;
+    --line-soft:#1F2826;
+    --accent:   #68C4DE;
+    --accent-2: #14262C;
+    --pass:     #55BE86;
+    --warn:     #D2A143;
+    --fail:     #E8766A;
+    --term-bg:  #0A1113;
+    --term-ink: #C6D4D8;
+    --term-dim: #64767D;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- language switching ---------------------------------------------- */
+  /* English is the default and shows without JS. */
+  [data-lang="uz"] { display: none; }
+  :root[data-page-lang="uz"] [data-lang="uz"] { display: revert; }
+  :root[data-page-lang="uz"] [data-lang="en"] { display: none; }
+
+  /* ---- shell ------------------------------------------------------------ */
+  .wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding-inline: 20px;
+  }
+
+  .topbar {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 10;
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar .wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 56px;
+    flex-wrap: wrap;
+  }
+  .brand {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .ver {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 1px 6px;
+  }
+  .topbar nav {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .langbtn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    padding: 4px 9px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 3px;
+  }
+  .langbtn + .langbtn { margin-left: -1px; }
+  .langbtn[aria-pressed="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--ground);
+  }
+  .langbtn:focus-visible,
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- type ------------------------------------------------------------- */
+  h1 {
+    font-family: var(--cond);
+    font-weight: 700;
+    font-size: clamp(34px, 6.4vw, 58px);
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  h2 {
+    font-family: var(--cond);
+    font-weight: 700;
+    font-size: clamp(22px, 3.4vw, 29px);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 16px;
+    margin: 0 0 4px;
+  }
+  p { margin: 0 0 14px; max-width: 66ch; }
+  .lede { font-size: 18px; color: var(--muted); max-width: 58ch; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 10px;
+  }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  code {
+    font-family: var(--mono);
+    font-size: 0.89em;
+    background: var(--sunken);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  section { padding-block: 56px; border-top: 1px solid var(--line-soft); }
+  section:first-of-type { border-top: 0; }
+  .sec-head { margin-bottom: 26px; }
+
+  /* ---- hero ------------------------------------------------------------- */
+  .hero { padding-block: 52px 56px; }
+  .hero-grid { display: grid; gap: 34px; }
+  @media (min-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr 1.05fr; align-items: start; gap: 44px; }
+  }
+
+  .install {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 13.5px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 11px 14px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .install .sigil { color: var(--accent); user-select: none; }
+
+  .note-inline {
+    font-size: 13px;
+    color: var(--faint);
+    margin: 10px 0 0;
+  }
+
+  /* ---- terminal --------------------------------------------------------- */
+  .term {
+    background: var(--term-bg);
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--term-bg) 70%, var(--line));
+    overflow: hidden;
+  }
+  .term-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 13px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--term-dim);
+    letter-spacing: 0.04em;
+  }
+  .term pre {
+    margin: 0;
+    padding: 15px 16px 17px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.75;
+    color: var(--term-ink);
+  }
+  .term .p  { color: var(--pass); }
+  .term .t  { color: var(--term-dim); }
+  .term .a  { color: var(--accent); }
+  .term .w  { color: var(--warn); }
+  .term .f  { color: var(--fail); }
+
+  /* ---- tables ----------------------------------------------------------- */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  td.k { font-family: var(--mono); font-size: 13px; white-space: nowrap; color: var(--ink); }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; width: 1%; white-space: nowrap; }
+  .yes { color: var(--pass); font-weight: 600; }
+  .no  { color: var(--fail); font-weight: 600; }
+
+  /* ---- code block ------------------------------------------------------- */
+  .code {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    overflow-x: auto;
+  }
+  .code pre {
+    margin: 0;
+    padding: 15px 16px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--ink);
+  }
+  .code .c { color: var(--faint); }
+  .code .key { color: var(--accent); }
+  .code .val { color: var(--ink); }
+
+  /* ---- catches ---------------------------------------------------------- */
+  .catches { display: grid; gap: 0; }
+  .catch {
+    display: grid;
+    gap: 4px 22px;
+    padding-block: 20px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .catch:first-child { border-top: 0; padding-top: 0; }
+  @media (min-width: 760px) {
+    .catch { grid-template-columns: 172px 1fr; }
+  }
+  .catch .sig {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--fail);
+    padding-top: 2px;
+    white-space: nowrap;
+  }
+  .catch p { margin: 0; }
+
+  /* ---- notes ------------------------------------------------------------ */
+  .notes { display: grid; gap: 14px; margin-top: 22px; }
+  .note {
+    border-left: 2px solid var(--accent);
+    padding: 2px 0 2px 14px;
+  }
+  .note p { margin: 0; font-size: 14.5px; color: var(--muted); }
+  .note strong { color: var(--ink); font-weight: 600; }
+
+  /* ---- layers ----------------------------------------------------------- */
+  .cta-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+  .btn {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    padding: 9px 16px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    background: var(--surface);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+  :root[data-theme="dark"] .btn.primary,
+  :root:not([data-theme="light"]) .btn.primary { color: var(--term-bg); }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .btn.primary { color: #FFFFFF; }
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-block: 28px 44px;
+    font-size: 13.5px;
+    color: var(--faint);
+  }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; }
+  footer .spacer { margin-left: auto; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <span class="brand">deploykit</span>
+    <span class="ver">0.1.0</span>
+    <nav aria-label="Language">
+      <button class="langbtn" id="lang-en" type="button" aria-pressed="true">EN</button>
+      <button class="langbtn" id="lang-uz" type="button" aria-pressed="false">UZ</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div class="hero-grid">
+      <div>
+        <h1>
+          <span data-lang="en">One deploy.yaml.<br>Two stores.</span>
+          <span data-lang="uz">Bitta deploy.yaml.<br>Ikkita do&rsquo;kon.</span>
+        </h1>
+        <p class="lede">
+          <span data-lang="en">Ship Flutter apps to Google Play and App Store Connect from a single config file. No Python, no virtualenv, no fastlane.</span>
+          <span data-lang="uz">Flutter ilovalarini bitta config fayl orqali Google Play va App Store Connect&rsquo;ga chiqaring. Python ham, virtualenv ham, fastlane ham kerak emas.</span>
+        </p>
+
+        <div class="install">
+          <span class="sigil">$</span>
+          <span>dart pub global activate deploykit</span>
+        </div>
+        <p class="note-inline">
+          <span data-lang="en">Android builds anywhere Flutter does. iOS needs macOS and Xcode.</span>
+          <span data-lang="uz">Android Flutter ishlaydigan har joyda. iOS uchun macOS va Xcode kerak.</span>
+        </p>
+
+        <div class="cta-row">
+          <a class="btn primary" href="https://pub.dev/packages/deploykit">pub.dev</a>
+          <a class="btn" href="https://github.com/narzullayev0772/deploykit">GitHub</a>
+        </div>
+      </div>
+
+      <div class="term" role="img"
+           aria-label="Terminal output of deploykit publish --dev --dry-run, showing the planned version, Android and iOS targets, and the Telegram notification.">
+        <div class="term-bar">deploykit publish --dev --dry-run</div>
+        <pre><span class="a">[deploykit]</span> DRY RUN — nothing will be changed
+<span class="a">[deploykit]</span> Would build: v3.1.0+121
+<span class="a">[deploykit]</span>   Android: aab, apk → Play track <span class="t">"internal"</span> (completed)
+<span class="a">[deploykit]</span>   iOS: ipa → App Store Connect (TestFlight, internal only)
+<span class="a">[deploykit]</span>   Telegram: <span class="t">"DEV build, test only"</span> + apk
+<span class="a">[deploykit]</span> Telegram: would send a message (dry run)
+
+<span class="p">✓</span> Dry run complete — v3.1.0+121 would ship like this.</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <section>
+      <div class="sec-head">
+        <p class="eyebrow"><span data-lang="en">Why it exists</span><span data-lang="uz">Nega kerak</span></p>
+        <h2>
+          <span data-lang="en">Deploy logic keeps getting gitignored</span>
+          <span data-lang="uz">Deploy mantig&rsquo;i doim git&rsquo;dan tashqarida qoladi</span>
+        </h2>
+      </div>
+
+      <p>
+        <span data-lang="en">Release scripts usually sit in the same directory as the <code>.p8</code> key and the service-account JSON. So the whole directory gets gitignored &mdash; and the logic quietly stops being version controlled. It survives until the day someone clears that folder.</span>
+        <span data-lang="uz">Release skriptlari odatda <code>.p8</code> kaliti va service-account JSON bilan bir papkada turadi. Shuning uchun butun papka gitignore qilinadi &mdash; va mantiq jimgina versiya nazoratidan chiqib ketadi. U kimdir o&rsquo;sha papkani tozalaguncha yashaydi.</span>
+      </p>
+      <p>
+        <span data-lang="en">deploykit splits the three things that get tangled together:</span>
+        <span data-lang="uz">deploykit bir-biriga chalkashib ketadigan uch narsani ajratadi:</span>
+      </p>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th><span data-lang="en">Layer</span><span data-lang="uz">Qatlam</span></th>
+              <th><span data-lang="en">Lives in</span><span data-lang="uz">Qayerda</span></th>
+              <th><span data-lang="en">In git</span><span data-lang="uz">Git&rsquo;da</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span data-lang="en">Logic</span><span data-lang="uz">Mantiq</span></td>
+              <td><span data-lang="en">this package, versioned</span><span data-lang="uz">shu paket, versiyalangan</span></td>
+              <td><span class="yes" data-lang="en">yes</span><span class="yes" data-lang="uz">ha</span></td>
+            </tr>
+            <tr>
+              <td><span data-lang="en">Configuration</span><span data-lang="uz">Sozlama</span></td>
+              <td class="k">deploy.yaml</td>
+              <td><span class="yes" data-lang="en">yes</span><span class="yes" data-lang="uz">ha</span></td>
+            </tr>
+            <tr>
+              <td><span data-lang="en">Secrets</span><span data-lang="uz">Maxfiy qiymatlar</span></td>
+              <td class="k">${ENV} · .env</td>
+              <td><span class="no" data-lang="en">never</span><span class="no" data-lang="uz">hech qachon</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <p class="eyebrow"><span data-lang="en">Commands</span><span data-lang="uz">Buyruqlar</span></p>
+        <h2>
+          <span data-lang="en">Five verbs, one config</span>
+          <span data-lang="uz">Besh buyruq, bitta config</span>
+        </h2>
+      </div>
+
+      <div class="tablewrap">
+        <table>
+          <tbody>
+            <tr>
+              <td class="k">init</td>
+              <td>
+                <span data-lang="en">Write <code>deploy.yaml</code>, <code>.env.example</code> and <code>.last_build_number</code></span>
+                <span data-lang="uz"><code>deploy.yaml</code>, <code>.env.example</code> va <code>.last_build_number</code> yaratadi</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="k">doctor</td>
+              <td>
+                <span data-lang="en">Check every precondition and report all of them, not just the first</span>
+                <span data-lang="uz">Barcha shartlarni tekshiradi va birinchisini emas, hammasini ko&rsquo;rsatadi</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="k">build</td>
+              <td>
+                <span data-lang="en">Build the artifacts and record what was made, for which environment</span>
+                <span data-lang="uz">Artefaktlarni quradi va nima, qaysi muhit uchun qurilganini yozib qo&rsquo;yadi</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="k">upload</td>
+              <td>
+                <span data-lang="en">Upload the last build. Safe to retry &mdash; it never bumps the build number</span>
+                <span data-lang="uz">Oxirgi build&rsquo;ni yuklaydi. Qayta urinish xavfsiz &mdash; build raqamini oshirmaydi</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="k">publish</td>
+              <td>
+                <span data-lang="en">build + upload + notify</span>
+                <span data-lang="uz">build + upload + xabarnoma</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p style="margin-top:18px">
+        <span data-lang="en">All of them except <code>init</code> take <code>--dev</code>, <code>--release</code> or <code>--env &lt;name&gt;</code>, plus <code>--android</code> / <code>--ios</code>. A <code>--dry-run</code> is a real check: it loads the config, resolves every <code>${VAR}</code> and runs pre-flight. It fails if your key is missing. It just does not build or upload anything.</span>
+        <span data-lang="uz"><code>init</code>dan tashqari hammasi <code>--dev</code>, <code>--release</code> yoki <code>--env &lt;nom&gt;</code> qabul qiladi, hamda <code>--android</code> / <code>--ios</code>. <code>--dry-run</code> haqiqiy tekshiruv: config o&rsquo;qiladi, har bir <code>${VAR}</code> almashtiriladi va oldindan tekshiruv bajariladi. Kalit yo&rsquo;q bo&rsquo;lsa yiqiladi. Faqat hech nima qurmaydi va yuklamaydi.</span>
+      </p>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <p class="eyebrow"><span data-lang="en">Configuration</span><span data-lang="uz">Sozlama</span></p>
+        <h2>
+          <span data-lang="en">Secrets never enter the file</span>
+          <span data-lang="uz">Maxfiy qiymatlar faylga tushmaydi</span>
+        </h2>
+      </div>
+
+      <div class="code">
+<pre><span class="key">version</span>: 1
+
+<span class="key">app</span>:
+  <span class="key">root</span>: .
+  <span class="key">android_package</span>: com.example.app
+
+<span class="key">environments</span>:
+  <span class="key">dev</span>:
+    <span class="key">branch</span>: <span class="val">'^versions/.+/dev$'</span>      <span class="c"># regex; omit the field to disable</span>
+    <span class="key">dart_defines</span>:
+      <span class="key">PROD_URL</span>: <span class="val">'false'</span>
+      <span class="key">INSPECTOR</span>: <span class="val">'true'</span>
+    <span class="key">android</span>:
+      <span class="key">artifacts</span>: [aab, apk]
+      <span class="key">apk</span>:
+        <span class="key">split_per_abi</span>: true
+        <span class="key">target_platform</span>: android-arm64
+      <span class="key">play</span>:
+        <span class="key">track</span>: internal
+        <span class="key">status</span>: completed
+    <span class="key">ios</span>:
+      <span class="key">testflight_internal_only</span>: true
+    <span class="key">notify</span>:
+      <span class="key">telegram</span>:
+        <span class="key">message</span>: <span class="val">'DEV build, test only'</span>
+        <span class="key">attach</span>: apk
+        <span class="key">on_oversize</span>: zip          <span class="c"># zip | fail | skip</span>
+
+  <span class="key">release</span>:
+    <span class="key">branch</span>: <span class="val">'^versions/.+/release$'</span>
+    <span class="key">dart_defines</span>: {}                 <span class="c"># empty on purpose — see below</span>
+    <span class="key">android</span>:
+      <span class="key">artifacts</span>: [aab]
+      <span class="key">play</span>:
+        <span class="key">track</span>: production
+        <span class="key">status</span>: draft
+
+<span class="key">integrations</span>:
+  <span class="key">play</span>:
+    <span class="key">service_account</span>: ${PLAY_SERVICE_ACCOUNT}
+  <span class="key">app_store</span>:
+    <span class="key">key_id</span>: ${ASC_KEY_ID}
+    <span class="key">issuer_id</span>: ${ASC_ISSUER_ID}
+    <span class="key">private_key</span>: ${ASC_PRIVATE_KEY}
+    <span class="key">team_id</span>: ${ASC_TEAM_ID}
+  <span class="key">telegram</span>:
+    <span class="key">bot_token</span>: ${TELEGRAM_BOT_TOKEN}
+    <span class="key">chat_id</span>: ${TELEGRAM_CHAT_ID}</pre>
+      </div>
+
+      <div class="notes">
+        <div class="note">
+          <p>
+            <span data-lang="en"><strong><code>dart_defines: {}</code> is a real value</strong>, not &ldquo;unconfigured&rdquo;. The <code>defaultValue</code> of each <code>fromEnvironment</code> in your Dart code is normally already the production value, so a production build should pass no <code>--dart-define</code> at all. Writing <code>PROD_URL: 'true'</code> would work, but it hides the intent.</span>
+            <span data-lang="uz"><strong><code>dart_defines: {}</code> haqiqiy qiymat</strong>, &ldquo;sozlanmagan&rdquo; degani emas. Dart kodingizdagi har bir <code>fromEnvironment</code>ning <code>defaultValue</code>si odatda allaqachon production qiymati, shuning uchun production build hech qanday <code>--dart-define</code> uzatmasligi kerak. <code>PROD_URL: 'true'</code> yozish ishlaydi, lekin niyatni yashiradi.</span>
+          </p>
+        </div>
+        <div class="note">
+          <p>
+            <span data-lang="en"><strong><code>branch: ''</code> is an error</strong>, not &ldquo;disabled&rdquo;. Remove the field to disable the check. An empty string is almost always an accident, and reading it as &ldquo;disabled&rdquo; would leave production unguarded.</span>
+            <span data-lang="uz"><strong><code>branch: ''</code> &mdash; bu xato</strong>, &ldquo;o&rsquo;chirilgan&rdquo; degani emas. Tekshiruvni o&rsquo;chirish uchun maydonni butunlay olib tashlang. Bo&rsquo;sh qiymat deyarli har doim tasodif, va uni &ldquo;o&rsquo;chirilgan&rdquo; deb o&rsquo;qish production&rsquo;ni himoyasiz qoldiradi.</span>
+          </p>
+        </div>
+        <div class="note">
+          <p>
+            <span data-lang="en"><strong>Use block style for <code>${VAR}</code>.</strong> In flow style, <code>{service_account: ${SA}}</code>, YAML reads the <code>{</code> of <code>${SA}</code> as a nested mapping and fails to parse.</span>
+            <span data-lang="uz"><strong><code>${VAR}</code> uchun block uslubini ishlating.</strong> Flow uslubida, <code>{service_account: ${SA}}</code>, YAML <code>${SA}</code>ning <code>{</code> belgisini ichma-ich mapping deb o&rsquo;qiydi va parse qila olmaydi.</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <p class="eyebrow"><span data-lang="en">What it catches</span><span data-lang="uz">Nimani ushlaydi</span></p>
+        <h2>
+          <span data-lang="en">Failures that otherwise pass quietly</span>
+          <span data-lang="uz">Aks holda jimgina o&rsquo;tib ketadigan nosozliklar</span>
+        </h2>
+        <p style="margin-top:10px;color:var(--muted)">
+          <span data-lang="en">Every one of these succeeds at the step where it goes wrong, and only surfaces much later.</span>
+          <span data-lang="uz">Bularning har biri xato sodir bo&rsquo;lgan bosqichda muvaffaqiyatli tugaydi va ancha keyin bilinadi.</span>
+        </p>
+      </div>
+
+      <div class="catches">
+        <div class="catch">
+          <div class="sig">error 91169</div>
+          <p>
+            <span data-lang="en">Dart code assets install into one shared directory. Run the app on the simulator, then build a release IPA, and Flutter can skip the device install as &ldquo;up to date&rdquo; &mdash; leaving a <em>simulator</em> framework for Xcode to embed. The build succeeds. App Store Connect rejects the upload after you have already sent 40MB. deploykit purges that cache before every iOS build.</span>
+            <span data-lang="uz">Dart code-asset&rsquo;lari bitta umumiy katalogga o&rsquo;rnatiladi. Ilovani simulyatorda ishga tushirib, keyin release IPA qursangiz, Flutter qurilma uchun o&rsquo;rnatishni &ldquo;allaqachon bajarilgan&rdquo; deb o&rsquo;tkazib yuboradi &mdash; Xcode esa <em>simulyator</em> framework&rsquo;ini joylaydi. Build o&rsquo;tadi. App Store Connect esa 40MB yuklangandan keyin rad etadi. deploykit bu keshni har bir iOS build&rsquo;idan oldin tozalaydi.</span>
+          </p>
+        </div>
+
+        <div class="catch">
+          <div class="sig">simulator slices</div>
+          <p>
+            <span data-lang="en">Before uploading, every Mach-O binary in the bundle is read for its <code>LC_BUILD_VERSION</code>. Anything targeting a simulator is caught in seconds &mdash; not minutes into an upload that was always going to be rejected.</span>
+            <span data-lang="uz">Yuklashdan oldin bundle ichidagi har bir Mach-O faylning <code>LC_BUILD_VERSION</code> qiymati o&rsquo;qiladi. Simulyatorga mo&rsquo;ljallangani bir necha soniyada topiladi &mdash; baribir rad etiladigan yuklashga daqiqalar sarflamay.</span>
+          </p>
+        </div>
+
+        <div class="catch">
+          <div class="sig">HTTP 413 · ok:false</div>
+          <p>
+            <span data-lang="en">Telegram reports real success only in the JSON body. <code>curl</code> exits 0 even on a 413, which is exactly how a rejected upload goes unnoticed in a shell script. deploykit reads the <code>ok</code> field and fails loudly.</span>
+            <span data-lang="uz">Telegram haqiqiy muvaffaqiyatni faqat JSON javobida bildiradi. <code>curl</code> 413&rsquo;da ham 0 qaytaradi &mdash; aynan shu sababdan rad etilgan yuklash skriptlarda sezilmay qoladi. deploykit <code>ok</code> maydonini o&rsquo;qiydi va baland ovozda yiqiladi.</span>
+          </p>
+        </div>
+
+        <div class="catch">
+          <div class="sig">versionCode reuse</div>
+          <p>
+            <span data-lang="en">The build number is bumped <em>before</em> the build, so a failed build skips a number instead of reusing one &mdash; Play rejects a duplicate outright. <code>upload</code> never bumps it, which is what makes retrying a failed upload safe.</span>
+            <span data-lang="uz">Build raqami build&rsquo;dan <em>oldin</em> oshiriladi &mdash; build yiqilsa raqam o&rsquo;tkazib yuboriladi, qayta ishlatilmaydi (Play takrorlanganini darhol rad etadi). <code>upload</code> uni hech qachon oshirmaydi, shuning uchun yiqilgan yuklashni qayta urinish xavfsiz.</span>
+          </p>
+        </div>
+
+        <div class="catch">
+          <div class="sig">stored, not deflated</div>
+          <p>
+            <span data-lang="en">Native libraries inside an APK are stored <em>uncompressed</em> so Android can mmap them straight out of the archive, so an outer zip often helps a great deal. The saving is never assumed: the zip is created, measured, and rejected if it is still over the limit.</span>
+            <span data-lang="uz">APK ichidagi native kutubxonalar <em>siqilmagan</em> holda saqlanadi &mdash; Android ularni arxivdan to&rsquo;g&rsquo;ridan-to&rsquo;g&rsquo;ri mmap qiladi &mdash; shuning uchun tashqi zip ko&rsquo;p yordam beradi. Lekin foyda taxmin qilinmaydi: zip yaratiladi, o&rsquo;lchanadi, va hali ham chegaradan katta bo&rsquo;lsa rad etiladi.</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <p class="eyebrow"><span data-lang="en">Exit codes</span><span data-lang="uz">Chiqish kodlari</span></p>
+        <h2>
+          <span data-lang="en">CI can tell the failures apart</span>
+          <span data-lang="uz">CI nosozliklarni ajrata oladi</span>
+        </h2>
+      </div>
+
+      <div class="tablewrap">
+        <table>
+          <tbody>
+            <tr><td class="num">0</td><td><span data-lang="en">Success</span><span data-lang="uz">Muvaffaqiyat</span></td></tr>
+            <tr><td class="num">2</td><td><span data-lang="en">Configuration error &mdash; bad YAML, missing field, unresolved <code>${VAR}</code></span><span data-lang="uz">Sozlama xatosi &mdash; yaroqsiz YAML, yetishmayotgan maydon, to&rsquo;ldirilmagan <code>${VAR}</code></span></td></tr>
+            <tr><td class="num">3</td><td><span data-lang="en">Pre-flight failed &mdash; wrong branch, missing tool, unreadable key</span><span data-lang="uz">Oldindan tekshiruv yiqildi &mdash; noto&rsquo;g&rsquo;ri branch, yo&rsquo;q vosita, o&rsquo;qilmaydigan kalit</span></td></tr>
+            <tr><td class="num">4</td><td><span data-lang="en">Build failed</span><span data-lang="uz">Build yiqildi</span></td></tr>
+            <tr><td class="num">5</td><td><span data-lang="en">Upload rejected by Play or App Store Connect</span><span data-lang="uz">Play yoki App Store Connect yuklashni rad etdi</span></td></tr>
+            <tr><td class="num">6</td><td><span data-lang="en">Deployed, but the notification failed</span><span data-lang="uz">Deploy o&rsquo;tdi, lekin xabarnoma yiqildi</span></td></tr>
+            <tr><td class="num">64</td><td><span data-lang="en">Usage error</span><span data-lang="uz">Foydalanish xatosi</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="notes">
+        <div class="note">
+          <p>
+            <span data-lang="en"><strong>Code 6 is deliberate.</strong> By the time a notification is sent, the artifact is already uploaded &mdash; so a dead Telegram token is not a failed deploy. But CI should still notice.</span>
+            <span data-lang="uz"><strong>6-kod ataylab ajratilgan.</strong> Xabarnoma yuborilayotgan paytda artefakt allaqachon yuklangan bo&rsquo;ladi &mdash; ya&rsquo;ni o&rsquo;lik Telegram tokeni yiqilgan deploy emas. Lekin CI baribir sezishi kerak.</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <p class="eyebrow"><span data-lang="en">Getting started</span><span data-lang="uz">Boshlash</span></p>
+        <h2>
+          <span data-lang="en">Four commands to a dry run</span>
+          <span data-lang="uz">To&rsquo;rt buyruqda dry run</span>
+        </h2>
+      </div>
+
+      <div class="term">
+        <div class="term-bar">
+          <span data-lang="en">in your Flutter project</span>
+          <span data-lang="uz">Flutter loyihangiz ichida</span>
+        </div>
+        <pre><span class="a">$</span> deploykit init
+<span class="t">  writes deploy.yaml, .env.example, .last_build_number
+  and adds .env + .deploykit/ to your .gitignore</span>
+
+<span class="a">$</span> cp .env.example .env<span class="t">          # then fill in the values</span>
+
+<span class="a">$</span> deploykit doctor --dev
+<span class="p">✓</span> flutter — available
+<span class="p">✓</span> branch — main — matches
+<span class="p">✓</span> App Store .p8 key — 241 bytes
+<span class="f">✗</span> Play API — key rejected (HTTP 401)
+
+<span class="a">$</span> deploykit publish --dev --dry-run</pre>
+      </div>
+
+      <p style="margin-top:18px">
+        <span data-lang="en">Run against a dev environment first. <code>doctor</code> and <code>--dry-run</code> cost seconds; a broken production release costs a review cycle.</span>
+        <span data-lang="uz">Avval dev muhitida sinab ko&rsquo;ring. <code>doctor</code> va <code>--dry-run</code> bir necha soniya oladi; buzilgan production release esa butun ko&rsquo;rib chiqish siklini oladi.</span>
+      </p>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>deploykit · MIT</span>
+    <a href="https://pub.dev/packages/deploykit">pub.dev</a>
+    <a href="https://github.com/narzullayev0772/deploykit">GitHub</a>
+    <span class="spacer"></span>
+    <span>
+      <span data-lang="en">Dart 3.8+ · iOS requires macOS</span>
+      <span data-lang="uz">Dart 3.8+ · iOS uchun macOS kerak</span>
+    </span>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btnEn = document.getElementById('lang-en');
+    var btnUz = document.getElementById('lang-uz');
+    var KEY = 'deploykit.lang';
+
+    function apply(lang) {
+      var uz = lang === 'uz';
+      if (uz) {
+        root.setAttribute('data-page-lang', 'uz');
+      } else {
+        root.removeAttribute('data-page-lang');
+      }
+      root.setAttribute('lang', uz ? 'uz' : 'en');
+      btnEn.setAttribute('aria-pressed', String(!uz));
+      btnUz.setAttribute('aria-pressed', String(uz));
+    }
+
+    function choose(lang) {
+      apply(lang);
+      try { localStorage.setItem(KEY, lang); } catch (e) { /* private window, blocked storage */ }
+    }
+
+    var saved = null;
+    try { saved = localStorage.getItem(KEY); } catch (e) { /* ignore */ }
+    apply(saved === 'uz' ? 'uz' : 'en');
+
+    btnEn.addEventListener('click', function () { choose('en'); });
+    btnUz.addEventListener('click', function () { choose('uz'); });
+  })();
+</script>
+</body>
+</html>
