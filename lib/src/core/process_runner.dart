@@ -78,7 +78,15 @@ class FakeProcessRunner implements ProcessRunner {
   /// Kalit — bajariladigan fayl nomi.
   final Map<String, ProcessResult> responses = {};
 
-  /// [responses] da mos kelmagan har qanday chaqiruv uchun javob.
+  /// Argumentlarga qarab javob berish kerak bo'lganda.
+  ///
+  /// `flutter --version` (preflight) va `flutter build` (haqiqiy build)
+  /// bir xil faylga tegishli, lekin testda ularni ajratish kerak bo'ladi:
+  /// masalan preflight o'tsin, build esa yiqilsin. `null` qaytarsa
+  /// [responses] va [defaultResponse] ga o'tiladi.
+  ProcessResult? Function(String executable, List<String> args)? responder;
+
+  /// [responder] va [responses] da mos kelmagan chaqiruvlar uchun javob.
   ProcessResult defaultResponse = const ProcessResult(0, '', '');
 
   @override
@@ -89,7 +97,9 @@ class FakeProcessRunner implements ProcessRunner {
     Map<String, String>? environment,
   }) async {
     calls.add(RecordedCall(executable, args, workingDirectory));
-    return responses[executable] ?? defaultResponse;
+    return responder?.call(executable, args) ??
+        responses[executable] ??
+        defaultResponse;
   }
 
   /// Berilgan faylga qilingan oxirgi chaqiruv, yoki `null`.

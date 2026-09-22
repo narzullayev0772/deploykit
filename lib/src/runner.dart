@@ -2,8 +2,11 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import 'commands/build_command.dart';
 import 'commands/doctor_command.dart';
 import 'commands/init_command.dart';
+import 'commands/publish_command.dart';
+import 'commands/upload_command.dart';
 import 'core/logger.dart';
 
 /// Barcha buyruqlarni yig'adi va global flaglarni e'lon qiladi.
@@ -29,6 +32,9 @@ class DeploykitRunner extends CommandRunner<int> {
 
     addCommand(InitCommand(workingDir: _workingDir, logger: _logger));
     addCommand(DoctorCommand(workingDir: _workingDir, logger: _logger));
+    addCommand(BuildCommand(workingDir: _workingDir, logger: _logger));
+    addCommand(UploadCommand(workingDir: _workingDir, logger: _logger));
+    addCommand(PublishCommand(workingDir: _workingDir, logger: _logger));
   }
 
   final Directory _workingDir;

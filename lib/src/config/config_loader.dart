@@ -60,10 +60,21 @@ class ConfigLoader {
     final rawRoot = _decode(source, isJson: isJson);
     final envFile = _optString(rawRoot, 'env_file') ?? '.env';
 
+    // Nisbiy yo'l CONFIG FAYLI joylashgan katalogga nisbatan hisoblanadi,
+    // jarayonning joriy katalogiga emas. Aks holda
+    // `deploykit --config boshqa/joy/deploy.yaml` o'sha katalogdagi .env ni
+    // topa olmaydi.
+    final configDir = file.parent.path;
+    final resolvedEnvFile =
+        envFile.startsWith('/') ? envFile : '$configDir/$envFile';
+
     return parse(
       source,
       isJson: isJson,
-      env: EnvResolver.load(envFile: envFile, platformEnv: platformEnv),
+      env: EnvResolver.load(
+        envFile: resolvedEnvFile,
+        platformEnv: platformEnv,
+      ),
     );
   }
 
