@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import 'commands/doctor_command.dart';
 import 'commands/init_command.dart';
 import 'core/logger.dart';
 
@@ -27,6 +28,7 @@ class DeploykitRunner extends CommandRunner<int> {
       );
 
     addCommand(InitCommand(workingDir: _workingDir, logger: _logger));
+    addCommand(DoctorCommand(workingDir: _workingDir, logger: _logger));
   }
 
   final Directory _workingDir;
