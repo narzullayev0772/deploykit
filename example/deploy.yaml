@@ -1,0 +1,81 @@
+# deploy.yaml — deploykit sozlamasi
+# Maxfiy qiymatlar bu yerda SAQLANMAYDI: faqat ${VAR} havolalari turadi.
+# Qiymatlar .env faylidan yoki muhit o'zgaruvchilaridan o'qiladi,
+# shuning uchun bu faylni bemalol git'ga qo'shish mumkin.
+version: 1
+
+app:
+  # Flutter loyiha ildizi — shu faylga nisbatan.
+  root: .
+  android_package: uz.example.app
+
+env_file: .env
+build_number_file: .last_build_number
+
+environments:
+  dev:
+    # Branch tekshiruvi (regex). Tekshiruvni o'chirish uchun qatorni
+    # butunlay olib tashlang. Bo'sh qoldirish XATO beradi — bu ataylab,
+    # chunki bo'sh qiymat odatda tasodif bo'ladi.
+    branch: '^versions/.+/dev$'
+
+    dart_defines:
+      PROD_URL: 'false'
+      INSPECTOR: 'true'
+
+    # flutter build ga qo'shiladigan qo'shimcha argumentlar.
+    build_args: []
+
+    android:
+      artifacts: [aab, apk]
+      apk:
+        # Fat APK ~112MB bo'ladi va Telegram'ning 50MB cheklovidan oshadi.
+        split_per_abi: true
+        target_platform: android-arm64
+      play:
+        track: internal
+        status: completed
+    ios:
+      testflight_internal_only: true
+    notify:
+      telegram:
+        message: '⚠️ DEV build, test only'
+        attach: apk
+        max_size_mb: 50
+        # zip | fail | skip — chegaradan oshganda nima qilish.
+        on_oversize: zip
+
+  release:
+    branch: '^versions/.+/release$'
+
+    # Bo'sh — bu ATAYLAB. Dart tomonidagi defaultValue lar allaqachon
+    # production qiymatlari, shuning uchun hech qanday --dart-define
+    # uzatilmaydi. Bu yerga PROD_URL: 'true' yozish ishlaydi, lekin
+    # niyatni yashiradi.
+    dart_defines: {}
+
+    android:
+      artifacts: [aab]
+      play:
+        track: production
+        # draft — Play Console'da qo'lda chiqariladi.
+        status: draft
+    ios:
+      testflight_internal_only: false
+    notify:
+      telegram:
+        message: '🚀 Production release'
+
+integrations:
+  play:
+    # Service-account JSON faylining yo'li.
+    service_account: ${PLAY_SERVICE_ACCOUNT}
+  app_store:
+    key_id: ${ASC_KEY_ID}
+    issuer_id: ${ASC_ISSUER_ID}
+    # .p8 faylining yo'li.
+    private_key: ${ASC_PRIVATE_KEY}
+    team_id: ${ASC_TEAM_ID}
+  telegram:
+    bot_token: ${TELEGRAM_BOT_TOKEN}
+    chat_id: ${TELEGRAM_CHAT_ID}

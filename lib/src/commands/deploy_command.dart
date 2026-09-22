@@ -6,40 +6,40 @@ import '../config/config_loader.dart';
 import '../core/exceptions.dart';
 import '../core/logger.dart';
 
-/// Muhit tanlaydigan barcha buyruqlar uchun umumiy flaglar.
+/// Shared flags for every command that selects an environment.
 abstract class DeployCommand extends Command<int> {
   DeployCommand({required this.workingDir, required this.logger}) {
     argParser
       ..addOption(
         'env',
         abbr: 'e',
-        help: 'deploy.yaml dagi muhit nomi.',
+        help: 'Environment name from deploy.yaml.',
       )
-      ..addFlag('dev', negatable: false, help: '--env dev ning qisqartmasi.')
+      ..addFlag('dev', negatable: false, help: 'Shorthand for --env dev.')
       ..addFlag(
         'release',
         negatable: false,
-        help: '--env release ning qisqartmasi.',
+        help: 'Shorthand for --env release.',
       )
-      ..addFlag('android', negatable: false, help: 'Faqat Android.')
-      ..addFlag('ios', negatable: false, help: 'Faqat iOS.')
+      ..addFlag('android', negatable: false, help: 'Android only.')
+      ..addFlag('ios', negatable: false, help: 'iOS only.')
       ..addOption(
         'config',
         abbr: 'c',
         defaultsTo: 'deploy.yaml',
-        help: 'Config fayl yo\'li.',
+        help: 'Path to the config file.',
       )
       ..addFlag(
         'allow-branch-mismatch',
         negatable: false,
-        help: 'Branch tekshiruvini ataylab chetlab o\'tish.',
+        help: 'Deliberately bypass the branch guard.',
       );
   }
 
   final Directory workingDir;
   final Logger logger;
 
-  /// `--android`/`--ios` berilmasa ikkalasi ham bajariladi.
+  /// With neither `--android` nor `--ios`, both platforms run.
   bool get doAndroid =>
       argResults!.flag('android') || !argResults!.flag('ios');
 
@@ -50,33 +50,33 @@ abstract class DeployCommand extends Command<int> {
   DeployConfig loadConfig() =>
       const ConfigLoader().load('${workingDir.path}/${argResults!.option('config')}');
 
-  /// `--env`, `--dev`, `--release` dan muhit nomini aniqlaydi.
+  /// Resolves the environment name from `--env`, `--dev` or `--release`.
   String resolveEnvName(DeployConfig config) {
     final explicit = argResults!.option('env');
     final dev = argResults!.flag('dev');
     final release = argResults!.flag('release');
 
     final chosen = <String>[
-      if (explicit != null) explicit,
+      ?explicit,
       if (dev) 'dev',
       if (release) 'release',
     ];
 
     if (chosen.length > 1) {
       throw const ConfigException(
-        'Bir vaqtda faqat bitta muhit tanlanadi (--env, --dev yoki --release).',
+        'Pick exactly one environment (--env, --dev or --release).',
       );
     }
     if (chosen.isEmpty) {
       throw ConfigException(
-        'Muhit ko\'rsatilmagan. --dev, --release yoki --env <nom> bering.\n'
-        'Mavjud muhitlar: ${config.environments.keys.join(', ')}',
+        'No environment given. Pass --dev, --release or --env <name>.\n'
+        'Available environments: ${config.environments.keys.join(', ')}',
       );
     }
     return chosen.single;
   }
 
-  /// Loyiha ildizining absolyut yo'li.
+  /// Absolute path to the project root.
   String projectRoot(DeployConfig config) {
     final root = config.app.root;
     if (root == '.' || root.isEmpty) return workingDir.path;

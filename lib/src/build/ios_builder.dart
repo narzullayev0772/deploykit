@@ -6,28 +6,26 @@ import '../core/logger.dart';
 import '../core/process_runner.dart';
 import 'build_artifact.dart';
 
-/// iOS IPA quradi.
+/// Builds the iOS IPA.
 ///
-/// Bu sinf ikkita qimmat darsni o'z ichiga oladi — ikkalasi ham
-/// `deploy_ios.sh` da tajriba orqali topilgan.
+/// This class encodes two expensive lessons, both learned the hard way.
 class IosBuilder {
   const IosBuilder({required this.runner, required this.logger});
 
   final ProcessRunner runner;
   final Logger logger;
 
-  /// Dart code-asset framework'lari bitta umumiy, konfiguratsiyaga bog'liq
-  /// bo'lmagan katalogga o'rnatiladi: `build/native_assets/ios/`.
+  /// Dart code-asset frameworks are installed into one shared, non
+  /// configuration-specific directory: `build/native_assets/ios/`.
   ///
-  /// Simulyator va qurilma o'sha yo'l uchun kurashadi, va o'rnatish
-  /// bosqichining o'zi keshlanadi. Ilovani simulyatorda ishga tushirib,
-  /// keyin release IPA qursangiz, Flutter qurilma uchun o'rnatishni
-  /// "allaqachon bajarilgan" deb hisoblaydi va o'tkazib yuboradi — Xcode esa
-  /// SIMULYATOR framework'ini IPA ichiga joylaydi. Build muvaffaqiyatli
-  /// bo'ladi, App Store Connect esa **91169** bilan rad etadi.
+  /// Simulator and device therefore fight over the same path, and the install
+  /// step itself is cached. Run the app on the simulator, then build a release
+  /// IPA, and Flutter considers the device install "up to date" and skips it —
+  /// leaving the SIMULATOR framework for Xcode to embed. The build succeeds;
+  /// App Store Connect rejects the upload with error **91169**.
   ///
-  /// Katalogni o'chirish target'ni "iflos" qiladi va nusxalashni qayta
-  /// bajartiradi.
+  /// Deleting the directory makes the target dirty and forces the device copy
+  /// to run again.
   Future<void> purgeStaleCodeAssets(String projectRoot) async {
     const stale = [
       'build/native_assets/ios',
@@ -35,23 +33,23 @@ class IosBuilder {
       'build/ios/Debug-iphonesimulator',
     ];
 
-    logger.detail('Eskirgan iOS code-asset kataloglari tozalanmoqda ...');
+    logger.detail('Purging stale iOS code-asset directories ...');
     for (final rel in stale) {
       final dir = Directory('$projectRoot/$rel');
       if (dir.existsSync()) dir.deleteSync(recursive: true);
     }
   }
 
-  /// `ExportOptions.plist` mazmunini yasaydi.
+  /// Renders the contents of `ExportOptions.plist`.
   ///
-  /// Fayl diskda saqlanmaydi — vaqtinchalik yoziladi. Shu bilan git'da
-  /// kuzatilmaydigan yana bitta fayl kamayadi.
+  /// The file is written to a temporary location rather than kept on disk —
+  /// one fewer untracked file to lose.
   String renderExportOptions({
     required String teamId,
     required bool internalOnly,
   }) {
-    // testFlightInternalTestingOnly build'ni tashqi TestFlight'dan
-    // chetda ushlab turadi.
+    // testFlightInternalTestingOnly keeps the build off external
+    // TestFlight.
     final internalKey = internalOnly
         ? '    <key>testFlightInternalTestingOnly</key>\n    <true/>\n'
         : '';
@@ -91,7 +89,7 @@ $internalKey    <key>uploadSymbols</key>
       internalOnly: env.ios?.testflightInternalOnly ?? false,
     );
 
-    // 1) Asosiy yo'l.
+    // 1) The preferred path.
     var ipa = await _flutterBuildIpa(
       projectRoot: projectRoot,
       env: env,
@@ -100,13 +98,13 @@ $internalKey    <key>uploadSymbols</key>
       buildNumber: buildNumber,
     );
 
-    // 2) Zaxira yo'l. MUHIM: bu faqat flutter chaqirilgandan keyin
-    // ishlashi mumkin — `flutter build ipa` define'larni
-    // ios/Flutter/Generated.xcconfig ga (DART_DEFINES=, base64) yozadi va
-    // archive o'sha yerdan o'qiydi. xcodebuild'ni birinchi ishlatish
-    // define'larni yo'qotadi.
+    // 2) The fallback. IMPORTANT: it can only run AFTER flutter has run.
+    // `flutter build ipa` writes the defines into
+    // ios/Flutter/Generated.xcconfig (DART_DEFINES=, base64) and the archive
+    // reads them from there. Running xcodebuild first loses the defines.
     if (ipa == null) {
-      logger.warn('flutter export IPA bermadi — xcodebuild ga o\'tilmoqda.');
+      logger.warn('flutter export produced no IPA — falling back to '
+          'xcodebuild.');
       ipa = await _xcodebuildFallback(
         projectRoot: projectRoot,
         asc: asc,
@@ -116,12 +114,12 @@ $internalKey    <key>uploadSymbols</key>
 
     if (ipa == null) {
       throw const BuildException(
-        'IPA hosil bo\'lmadi: flutter ham, xcodebuild ham natija bermadi.',
+        'No IPA was produced: neither flutter nor xcodebuild succeeded.',
       );
     }
 
     final artifact = BuildArtifact(ArtifactType.ipa, ipa);
-    logger.ok('IPA tayyor (${artifact.humanSize})');
+    logger.ok('IPA ready (${artifact.humanSize})');
     return artifact;
   }
 
@@ -138,7 +136,7 @@ $internalKey    <key>uploadSymbols</key>
       );
 
     logger.detail(
-      'Export rejimi: ${internalOnly ? 'TestFlight (faqat ichki)' : 'App Store'}',
+      'Export mode: ${internalOnly ? 'TestFlight (internal only)' : 'App Store'}',
     );
     return file.path;
   }
@@ -161,12 +159,12 @@ $internalKey    <key>uploadSymbols</key>
       '--export-options-plist=$plistPath',
     ];
 
-    logger.info('iOS IPA qurilmoqda ...');
+    logger.info('Building iOS IPA ...');
     logger.detail('flutter ${args.join(' ')}');
 
     final r = await runner.run('flutter', args, workingDirectory: projectRoot);
     if (!r.ok) {
-      logger.detail('flutter build ipa kod ${r.exitCode} qaytardi');
+      logger.detail('flutter build ipa exited ${r.exitCode}');
       return null;
     }
     return _newestIpa('$projectRoot/build/ios/ipa');
@@ -181,8 +179,8 @@ $internalKey    <key>uploadSymbols</key>
     final archivePath = '$outDir/Runner.xcarchive';
     final exportDir = '$outDir/ipa';
 
-    // ASC kaliti ikkala bosqichda ham kerak — provisioning yangilanishi
-    // export vaqtida ham sodir bo'ladi.
+    // The ASC key is needed in both steps — provisioning updates can happen
+    // during export too.
     final auth = <String>[
       '-allowProvisioningUpdates',
       '-authenticationKeyPath', asc.privateKey,
@@ -201,7 +199,7 @@ $internalKey    <key>uploadSymbols</key>
     ], workingDirectory: projectRoot);
 
     if (!archive.ok) {
-      logger.detail('xcodebuild archive kod ${archive.exitCode} qaytardi');
+      logger.detail('xcodebuild archive exited ${archive.exitCode}');
       return null;
     }
 
@@ -215,13 +213,13 @@ $internalKey    <key>uploadSymbols</key>
     ], workingDirectory: projectRoot);
 
     if (!export.ok) {
-      logger.detail('xcodebuild export kod ${export.exitCode} qaytardi');
+      logger.detail('xcodebuild export exited ${export.exitCode}');
       return null;
     }
     return _newestIpa(exportDir);
   }
 
-  /// Katalogdagi eng so'nggi `.ipa`, yoki `null`.
+  /// The newest `.ipa` in a directory, or `null`.
   String? _newestIpa(String dirPath) {
     final dir = Directory(dirPath);
     if (!dir.existsSync()) return null;

@@ -11,12 +11,12 @@ import '../core/exceptions.dart';
 import '../core/logger.dart';
 import 'publisher.dart';
 
-/// AAB ni Google Play'ga yuklaydi.
+/// Uploads an AAB to Google Play.
 ///
-/// Bu sinf `upload_play.py` ni, u bilan birga `.venv` va
-/// `pip install google-api-python-client` ni ham butunlay almashtiradi:
-/// `package:googleapis` da androidpublisher API to'liq bor, service-account
-/// JWT'ni esa `googleapis_auth` o'zi imzolaydi.
+/// This replaces the usual Python helper together with its virtualenv and
+/// `pip install google-api-python-client`: `package:googleapis` ships the
+/// full androidpublisher API, and `googleapis_auth` signs the service-account
+/// JWT itself.
 class PlayPublisher implements Publisher {
   PlayPublisher({
     required http.Client client,
@@ -25,10 +25,9 @@ class PlayPublisher implements Publisher {
     required this.logger,
     UploadOptions? uploadOptions,
   })  : _api = AndroidPublisherApi(client),
-        // Haqiqiy AAB odatda 50MB dan katta, shuning uchun standart holat —
-        // resumable. Testlar kichik media bilan oddiy yuklashni ishlatadi,
-        // shunda MockClient bitta so'rovni ko'radi va ketma-ketlik
-        // tekshiriladi.
+        // A real AAB is usually well over 50MB, so resumable is the
+        // default. Tests pass small media with the simple options so a
+        // MockClient sees one request and the sequence can be asserted.
         _uploadOptions = uploadOptions ?? ResumableUploadOptions();
 
   final AndroidPublisherApi _api;
@@ -37,12 +36,12 @@ class PlayPublisher implements Publisher {
   final Logger logger;
   final UploadOptions _uploadOptions;
 
-  /// Service-account JSON'dan avtorizatsiyalangan client yasaydi.
+  /// Builds an authorised client from a service-account JSON file.
   static Future<http.Client> clientFromServiceAccount(String jsonPath) async {
     final file = File(jsonPath);
     if (!file.existsSync()) {
       throw UploadException(
-        'Play service-account JSON topilmadi: $jsonPath',
+        'Play service-account JSON not found: $jsonPath',
       );
     }
 
@@ -56,7 +55,9 @@ class PlayPublisher implements Publisher {
     } on UploadException {
       rethrow;
     } catch (e) {
-      throw UploadException('Play service-account JSON yaroqsiz ($jsonPath): $e');
+      throw UploadException(
+        'Play service-account JSON is invalid ($jsonPath): $e',
+      );
     }
   }
 
@@ -67,23 +68,23 @@ class PlayPublisher implements Publisher {
   }) async {
     final file = File(artifact.path);
     if (!file.existsSync()) {
-      // dryRun bo'lsa ham tekshiriladi — bu haqiqiy tekshiruvning ma'nosi.
-      throw UploadException('Yuklash uchun fayl topilmadi: ${artifact.path}');
+      // Checked even for a dry run — that is what makes a dry run useful.
+      throw UploadException('File to upload not found: ${artifact.path}');
     }
 
     if (dryRun) {
       return PublishResult(
         description: 'Play: ${artifact.humanSize} AAB → '
-            '"${play.track}" track, status "${play.status}" (dry-run)',
+            'track "${play.track}", status "${play.status}" (dry run)',
       );
     }
 
     try {
       final edit = await _api.edits.insert(AppEdit(), packageName);
       final editId = edit.id!;
-      logger.detail('Play edit ochildi: $editId');
+      logger.detail('Opened Play edit $editId');
 
-      logger.info('AAB yuklanmoqda (${artifact.humanSize}) ...');
+      logger.info('Uploading AAB (${artifact.humanSize}) ...');
       final bundle = await _api.edits.bundles.upload(
         packageName,
         editId,
@@ -98,10 +99,10 @@ class PlayPublisher implements Publisher {
       final versionCode = bundle.versionCode;
       if (versionCode == null) {
         throw const UploadException(
-          'Play versionCode qaytarmadi — yuklash tugallanmagan.',
+          'Play returned no versionCode — the upload did not complete.',
         );
       }
-      logger.ok('versionCode $versionCode yuklandi');
+      logger.ok('Uploaded versionCode $versionCode');
 
       await _api.edits.tracks.update(
         Track(
@@ -118,7 +119,7 @@ class PlayPublisher implements Publisher {
         editId,
         play.track,
       );
-      logger.detail('"${play.track}" track yangilandi (${play.status})');
+      logger.detail('Updated track "${play.track}" (${play.status})');
 
       await _api.edits.commit(packageName, editId);
 
@@ -130,13 +131,13 @@ class PlayPublisher implements Publisher {
     } on UploadException {
       rethrow;
     } on DetailedApiRequestError catch (e) {
-      // googleapis ichki turlarini tashqariga chiqarmaymiz — foydalanuvchi
-      // uchun bu shovqin.
+      // googleapis internals never reach the user — that is just noise.
       throw UploadException(
-        'Google Play rad etdi (HTTP ${e.status}): ${e.message ?? e.toString()}',
+        'Google Play rejected the upload (HTTP ${e.status}): '
+        '${e.message ?? e}',
       );
     } catch (e) {
-      throw UploadException('Google Play ga yuklashda xato: $e');
+      throw UploadException('Failed to upload to Google Play: $e');
     }
   }
 }

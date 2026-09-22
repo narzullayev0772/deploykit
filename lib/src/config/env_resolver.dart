@@ -2,18 +2,18 @@ import 'dart:io';
 
 import '../core/exceptions.dart';
 
-/// `${VAR}` havolalarini haqiqiy qiymatlarga almashtiradi.
+/// Substitutes `${VAR}` references with their actual values.
 ///
-/// Maxfiy qiymatlar hech qachon `deploy.yaml` ichida saqlanmaydi — u faylda
-/// faqat havola turadi, qiymat esa muhit o'zgaruvchisidan yoki `.env`
-/// faylidan keladi. Shu sabab `deploy.yaml` bemalol git'ga qo'shiladi.
+/// Secrets never live inside `deploy.yaml` — the file holds only references,
+/// and the values come from environment variables or `.env`. That is what
+/// makes `deploy.yaml` safe to commit.
 class EnvResolver {
   EnvResolver(this._vars);
 
-  /// Muhit o'zgaruvchilari va `.env` faylini birlashtiradi.
+  /// Merges environment variables with a `.env` file.
   ///
-  /// Muhit o'zgaruvchisi `.env` dan **ustun** — CI'da `.env` yaratmasdan
-  /// faqat secret'larni berish uchun.
+  /// Environment variables take **precedence** over `.env`, so CI can supply
+  /// secrets without writing a file.
   factory EnvResolver.load({
     String? envFile,
     Map<String, String>? platformEnv,
@@ -29,29 +29,29 @@ class EnvResolver {
 
   static final _pattern = RegExp(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}');
 
-  /// [raw] ichidagi barcha `${VAR}` larni almashtiradi.
+  /// Substitutes every `${VAR}` in [raw].
   ///
-  /// [path] — xato xabarida ko'rsatiladigan config yo'li, masalan
-  /// `integrations.telegram.bot_token`. Usiz foydalanuvchi qaysi maydon
-  /// muammoli ekanini topolmaydi.
+  /// [path] is the config path shown in error messages, for example
+  /// `integrations.telegram.bot_token`. Without it the user cannot tell which
+  /// field is the problem.
   String resolve(String raw, {required String path}) {
     return raw.replaceAllMapped(_pattern, (m) {
       final name = m.group(1)!;
       final value = _vars[name];
       if (value == null) {
         throw ConfigException(
-          '$path: \${$name} topilmadi. '
-          'Uni muhit o\'zgaruvchisi sifatida bering yoki .env faylga qo\'shing.',
+          '$path: \${$name} is not set. '
+          'Export it as an environment variable or add it to your .env file.',
         );
       }
       return value;
     });
   }
 
-  /// Map/List daraxti bo'ylab rekursiv yurib, barcha matnlarni almashtiradi.
+  /// Walks a Map/List tree, substituting every string it finds.
   ///
-  /// Butun config daraxtiga bir marta qo'llanadi, shunda har bir maydonda
-  /// alohida o'ylash shart emas.
+  /// Applied once to the whole config tree, so the parser below never has to
+  /// think about substitution again.
   Object? resolveDeep(Object? node, {String path = ''}) {
     if (node is String) return resolve(node, path: path.isEmpty ? '<root>' : path);
     if (node is Map) {
@@ -72,9 +72,10 @@ class EnvResolver {
     return node;
   }
 
-  /// `KEY=value` formatidagi faylni o'qiydi.
+  /// Reads a `KEY=value` file.
   ///
-  /// Fayl yo'q bo'lsa — bo'sh xarita, xato emas: `.env` ixtiyoriy.
+  /// A missing file yields an empty map rather than an error: `.env` is
+  /// optional.
   static Map<String, String> _readEnvFile(String path) {
     final file = File(path);
     if (!file.existsSync()) return {};
@@ -91,7 +92,7 @@ class EnvResolver {
       final key = line.substring(0, eq).trim();
       var value = line.substring(eq + 1).trim();
 
-      // Qiymat atrofidagi juft tirnoqni olib tashlash.
+      // Strip a matching pair of surrounding quotes.
       if (value.length >= 2 &&
           ((value.startsWith('"') && value.endsWith('"')) ||
               (value.startsWith("'") && value.endsWith("'")))) {

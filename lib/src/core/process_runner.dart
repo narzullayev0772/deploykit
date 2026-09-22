@@ -3,7 +3,7 @@ import 'dart:io' as io;
 
 import 'package:collection/collection.dart';
 
-/// Tashqi jarayon natijasi.
+/// The result of running an external process.
 class ProcessResult {
   const ProcessResult(this.exitCode, this.stdout, this.stderr);
 
@@ -14,12 +14,11 @@ class ProcessResult {
   bool get ok => exitCode == 0;
 }
 
-/// Tashqi jarayonlarni ishga tushirish.
+/// Runs external processes.
 ///
-/// Har doim konstruktor orqali inject qilinadi, shuning uchun builder va
-/// publisher'lar haqiqiy `flutter` yoki `xcodebuild`siz test qilinadi —
-/// testlar uzatilgan argumentlarni tekshiradi, bu esa xatolar aslida
-/// tug'iladigan joy.
+/// Always injected through the constructor, so builders and publishers can be
+/// tested without a real `flutter` or `xcodebuild`. The tests assert on the
+/// arguments that were passed — which is where the bugs actually live.
 abstract class ProcessRunner {
   Future<ProcessResult> run(
     String executable,
@@ -55,7 +54,7 @@ class RealProcessRunner implements ProcessRunner {
   }
 }
 
-/// Bitta yozib olingan chaqiruv.
+/// A single recorded invocation.
 class RecordedCall {
   const RecordedCall(this.executable, this.args, this.workingDirectory);
 
@@ -67,26 +66,26 @@ class RecordedCall {
   String toString() => '$executable ${args.join(' ')}';
 }
 
-/// Testlar uchun [ProcessRunner].
+/// A [ProcessRunner] for tests.
 ///
-/// `lib/` ichida turadi, `test/` da emas — paket foydalanuvchilari ham o'z
-/// testlarida ishlatishi mumkin.
+/// It lives in `lib/` rather than `test/` because consumers of this package
+/// can use it in their own tests too.
 class FakeProcessRunner implements ProcessRunner {
-  /// Qilingan barcha chaqiruvlar, tartibi bilan.
+  /// Every call that was made, in order.
   final List<RecordedCall> calls = [];
 
-  /// Kalit — bajariladigan fayl nomi.
+  /// Keyed by executable name.
   final Map<String, ProcessResult> responses = {};
 
-  /// Argumentlarga qarab javob berish kerak bo'lganda.
+  /// For responses that depend on the arguments.
   ///
-  /// `flutter --version` (preflight) va `flutter build` (haqiqiy build)
-  /// bir xil faylga tegishli, lekin testda ularni ajratish kerak bo'ladi:
-  /// masalan preflight o'tsin, build esa yiqilsin. `null` qaytarsa
-  /// [responses] va [defaultResponse] ga o'tiladi.
+  /// `flutter --version` (pre-flight) and `flutter build` share an executable
+  /// but a test often needs to tell them apart — letting pre-flight pass while
+  /// the build fails, say. Returning `null` falls through to [responses] and
+  /// then [defaultResponse].
   ProcessResult? Function(String executable, List<String> args)? responder;
 
-  /// [responder] va [responses] da mos kelmagan chaqiruvlar uchun javob.
+  /// Used for calls matched by neither [responder] nor [responses].
   ProcessResult defaultResponse = const ProcessResult(0, '', '');
 
   @override
@@ -102,7 +101,7 @@ class FakeProcessRunner implements ProcessRunner {
         defaultResponse;
   }
 
-  /// Berilgan faylga qilingan oxirgi chaqiruv, yoki `null`.
+  /// The last call made to [executable], or `null`.
   RecordedCall? lastCallTo(String executable) =>
       calls.lastWhereOrNull((c) => c.executable == executable);
 }

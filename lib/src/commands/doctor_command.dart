@@ -6,11 +6,10 @@ import '../core/process_runner.dart';
 import '../publish/play_publisher.dart';
 import 'deploy_command.dart';
 
-/// Deploy'dan oldin barcha shartlarni tekshiradi va hammasini ko'rsatadi.
+/// Checks every precondition and reports all of them.
 ///
-/// `publish` dan farqi: bu yerda birinchi xatoda to'xtash yo'q — maqsad
-/// to'liq manzarani berish, shunda foydalanuvchi hammasini bir yo'la
-/// tuzatadi.
+/// Unlike `publish`, this does not stop at the first failure: the point is to
+/// show the whole picture so everything can be fixed in one pass.
 class DoctorCommand extends DeployCommand {
   DoctorCommand({
     required super.workingDir,
@@ -24,7 +23,7 @@ class DoctorCommand extends DeployCommand {
     argParser.addFlag(
       'network',
       defaultsTo: true,
-      help: 'Play va Telegram bilan aloqani ham tekshirish.',
+      help: 'Also check connectivity to Play and Telegram.',
     );
   }
 
@@ -33,7 +32,7 @@ class DoctorCommand extends DeployCommand {
   final PlayProbe _playProbe;
 
   static Future<void> _realPlayProbe(String path) async {
-    // Kalitni haqiqatdan almashtirib ko'radi — fayl mavjudligi yetarli emas.
+    // Actually exchanges the key — file existence is not enough.
     (await PlayPublisher.clientFromServiceAccount(path)).close();
   }
 
@@ -42,14 +41,14 @@ class DoctorCommand extends DeployCommand {
 
   @override
   String get description =>
-      'Deploy uchun barcha shartlarni tekshiradi va hisobot beradi.';
+      'Check every precondition for a deploy and report the results.';
 
   @override
   Future<int> run() async {
     final config = loadConfig();
     final env = config.environment(resolveEnvName(config));
 
-    logger.info('Muhit: ${env.name}');
+    logger.info('Environment: ${env.name}');
     logger.blank();
 
     final results = await Preflight(
@@ -84,13 +83,13 @@ class DoctorCommand extends DeployCommand {
 
     logger.blank();
     if (failed > 0) {
-      logger.err('$failed ta shart bajarilmagan — deploy ishlamaydi.');
+      logger.err('$failed check(s) failed — this deploy would not work.');
       return 3;
     }
     if (warned > 0) {
-      logger.warn('$warned ta ogohlantirish, lekin deploy mumkin.');
+      logger.warn('$warned warning(s), but the deploy can proceed.');
     } else {
-      logger.ok('Hammasi tayyor.');
+      logger.ok('Everything is ready.');
     }
     return 0;
   }

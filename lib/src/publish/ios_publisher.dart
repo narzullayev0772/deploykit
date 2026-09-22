@@ -9,7 +9,7 @@ import '../core/logger.dart';
 import '../core/process_runner.dart';
 import 'publisher.dart';
 
-/// IPA ni App Store Connect'ga yuklaydi.
+/// Uploads an IPA to App Store Connect.
 class IosPublisher implements Publisher {
   const IosPublisher({
     required this.runner,
@@ -21,22 +21,21 @@ class IosPublisher implements Publisher {
   final AppStoreIntegration asc;
   final Logger logger;
 
-  /// Mach-O sarlavhasining sehrli baytlari (32/64 bit, ikkala tartibda, fat).
+  /// Mach-O magic numbers (32/64-bit, both byte orders, and universal).
   static const _machOMagics = <int>[
     0xFEEDFACE, 0xFEEDFACF, // big-endian
     0xCEFAEDFE, 0xCFFAEDFE, // little-endian
     0xCAFEBABE, 0xBEBAFECA, // universal (fat)
   ];
 
-  /// IPA ichidagi har bir Mach-O ikkilik faylining maqsad platformasini
-  /// tekshiradi.
+  /// Checks the target platform of every Mach-O binary inside the IPA.
   ///
-  /// Simulyator uchun qurilgan slice App Store Connect tomonidan **91169**
-  /// ("references an unsupported platform in the arm64 slice") bilan rad
-  /// etiladi. Buni yuklashdan oldin bir necha soniyada topish, 40MB
-  /// yuklangandan keyin bilishdan ancha arzon.
+  /// A slice built for the simulator is rejected by App Store Connect with
+  /// error **91169** ("references an unsupported platform in the arm64
+  /// slice"). Catching that here takes seconds; finding out after a 40MB
+  /// upload takes minutes.
   ///
-  /// Qaytaradi: `"<nisbiy yo'l>: <platforma>"` ro'yxati. Bo'sh — toza.
+  /// Returns a list of `"<relative path>: <platform>"`. Empty means clean.
   Future<List<String>> findSimulatorSlices(String ipaPath) async {
     final tmp = Directory.systemTemp.createTempSync('deploykit_ipa_');
     final offenders = <String>[];
@@ -50,7 +49,7 @@ class IosPublisher implements Publisher {
         final bytes = entry.readBytes();
         if (bytes == null || !_isMachO(bytes)) continue;
 
-        // vtool faylni diskdan o'qiydi, shuning uchun chiqarib olamiz.
+        // vtool reads from disk, so the entry has to be extracted.
         final extracted = File('${tmp.path}/${entry.name}')
           ..createSync(recursive: true)
           ..writeAsBytesSync(bytes);
@@ -73,32 +72,32 @@ class IosPublisher implements Publisher {
     required bool dryRun,
   }) async {
     if (!File(artifact.path).existsSync()) {
-      throw UploadException('Yuklash uchun IPA topilmadi: ${artifact.path}');
+      throw UploadException('IPA to upload not found: ${artifact.path}');
     }
 
-    // Tekshiruv dryRun'da ham bajariladi — bu uning butun ma'nosi.
-    logger.info('IPA simulyator slice`lari uchun tekshirilmoqda ...');
+    // Runs even for a dry run — that is the entire point of the check.
+    logger.info('Scanning the IPA for simulator slices ...');
     final offenders = await findSimulatorSlices(artifact.path);
 
     if (offenders.isNotEmpty) {
       throw UploadException(
-        'IPA ichida simulyator uchun qurilgan ikkilik fayllar bor. '
-        'App Store Connect buni 91169 xatosi bilan rad etadi.\n'
+        'The IPA contains binaries built for the simulator. App Store '
+        'Connect rejects these with error 91169.\n'
         '${offenders.map((o) => '  • $o').join('\n')}\n'
-        'Sabab odatda build/native_assets/ios keshi — `deploykit build` uni '
-        'avtomatik tozalaydi.',
+        'The usual cause is a stale build/native_assets/ios cache, which '
+        '`deploykit build` purges for you.',
       );
     }
-    logger.ok('Barcha ikkilik fayllar iOS qurilmasiga mo\'ljallangan');
+    logger.ok('All embedded binaries target an iOS device');
 
     if (dryRun) {
       return PublishResult(
         description: 'App Store Connect: ${artifact.humanSize} IPA → '
-            'altool yuklash (dry-run)',
+            'altool upload (dry run)',
       );
     }
 
-    logger.info('altool orqali yuklanmoqda ...');
+    logger.info('Uploading via altool ...');
     final r = await runner.run('xcrun', [
       'altool',
       '--upload-app',
@@ -110,13 +109,13 @@ class IosPublisher implements Publisher {
 
     if (!r.ok) {
       throw UploadException(
-        'altool yuklashni rad etdi (kod ${r.exitCode}):\n'
+        'altool rejected the upload (exit ${r.exitCode}):\n'
         '${r.stderr.trim().isEmpty ? r.stdout.trim() : r.stderr.trim()}',
       );
     }
 
     return const PublishResult(
-      description: 'App Store Connect: IPA yuklandi',
+      description: 'App Store Connect: IPA uploaded',
     );
   }
 
@@ -127,11 +126,11 @@ class IosPublisher implements Publisher {
     return _machOMagics.contains(magic);
   }
 
-  /// `vtool -show-build-version` chiqishidan platformani ajratadi.
+  /// Extracts the platform from `vtool -show-build-version` output.
   ///
-  /// vtool yiqilsa `null` — bu fayl Mach-O ko'rinsa ham LC_BUILD_VERSION
-  /// bo'lmasligi mumkin. Bunday holatni buzg'unchi deb hisoblamaymiz,
-  /// chunki noto'g'ri to'xtatish haqiqiy deploy'ni bloklaydi.
+  /// Returns `null` when vtool fails — a file can look like a Mach-O and
+  /// still carry no LC_BUILD_VERSION. Such a file is not treated as an
+  /// offender, because a false positive blocks a legitimate deploy.
   Future<String?> _platformOf(String binaryPath) async {
     final r = await runner.run('vtool', ['-show-build-version', binaryPath]);
     if (!r.ok) return null;

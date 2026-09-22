@@ -7,7 +7,7 @@ import '../core/exceptions.dart';
 import 'deploy_config.dart';
 import 'env_resolver.dart';
 
-/// To'liq o'qilgan va tasdiqlangan konfiguratsiya.
+/// A fully parsed and validated configuration.
 class DeployConfig {
   const DeployConfig({
     required this.version,
@@ -25,45 +25,45 @@ class DeployConfig {
   final Map<String, EnvironmentConfig> environments;
   final IntegrationsConfig integrations;
 
-  /// Nomi bo'yicha muhit. Topilmasa — mavjudlarini sanab xato beradi.
+  /// Looks up an environment by name, listing the known ones when it fails.
   EnvironmentConfig environment(String name) {
     final e = environments[name];
     if (e == null) {
       final known = environments.keys.join(', ');
       throw ConfigException(
-        '"$name" muhiti deploy.yaml da topilmadi. Mavjud muhitlar: $known',
+        'Environment "$name" is not defined in deploy.yaml. '
+        'Available environments: $known',
       );
     }
     return e;
   }
 }
 
-/// `deploy.yaml` / `deploy.json` ni o'qib [DeployConfig] ga aylantiradi.
+/// Reads `deploy.yaml` / `deploy.json` into a [DeployConfig].
 ///
-/// `${VAR}` almashtirish **parse'dan oldin** butun daraxt bo'ylab bajariladi,
-/// shuning uchun quyidagi kodda har bir maydonda alohida o'ylash shart emas.
+/// `${VAR}` substitution runs over the whole tree **before** parsing, so the
+/// code below never has to think about it field by field.
 class ConfigLoader {
   const ConfigLoader();
 
-  /// Fayldan o'qiydi. Kengaytmaga qarab yaml yoki json deb hisoblaydi.
+  /// Loads from a file, picking YAML or JSON by extension.
   DeployConfig load(String path, {Map<String, String>? platformEnv}) {
     final file = File(path);
     if (!file.existsSync()) {
       throw ConfigException(
-        '$path topilmadi. `deploykit init` bilan yarating.',
+        '$path not found. Create it with `deploykit init`.',
       );
     }
     final source = file.readAsStringSync();
     final isJson = path.toLowerCase().endsWith('.json');
 
-    // envFile yo'lini bilish uchun avval xomaki o'qiymiz — almashtirishsiz.
+    // Decode once without substitution, just to learn where .env lives.
     final rawRoot = _decode(source, isJson: isJson);
     final envFile = _optString(rawRoot, 'env_file') ?? '.env';
 
-    // Nisbiy yo'l CONFIG FAYLI joylashgan katalogga nisbatan hisoblanadi,
-    // jarayonning joriy katalogiga emas. Aks holda
-    // `deploykit --config boshqa/joy/deploy.yaml` o'sha katalogdagi .env ni
-    // topa olmaydi.
+    // A relative path resolves against the CONFIG FILE's directory, not the
+    // process working directory. Otherwise
+    // `deploykit --config some/dir/deploy.yaml` cannot find `some/dir/.env`.
     final configDir = file.parent.path;
     final resolvedEnvFile =
         envFile.startsWith('/') ? envFile : '$configDir/$envFile';
@@ -89,7 +89,7 @@ class ConfigLoader {
     final version = root['version'];
     if (version != 1) {
       throw ConfigException(
-        'version: qo\'llab-quvvatlanadigan yagona qiymat — 1 (berilgan: $version)',
+        'version: the only supported value is 1 (got: $version)',
       );
     }
 
@@ -101,7 +101,9 @@ class ConfigLoader {
 
     final envsMap = _requireMap(root, 'environments');
     if (envsMap.isEmpty) {
-      throw ConfigException('environments: kamida bitta muhit bo\'lishi kerak');
+      throw const ConfigException(
+        'environments: at least one environment is required',
+      );
     }
 
     final environments = <String, EnvironmentConfig>{
@@ -123,19 +125,19 @@ class ConfigLoader {
     );
   }
 
-  // ---- Muhit --------------------------------------------------------------
+  // ---- Environments -------------------------------------------------------
 
   EnvironmentConfig _environment(String name, Map<String, Object?> m) {
     final path = 'environments.$name';
 
-    // branch uch holati: maydon yo'q / null → tekshiruv o'chirilgan;
-    // bo'sh matn → xato, chunki bu deyarli har doim tasodif va uni jimgina
-    // "o'chirilgan" deb talqin qilish production'ni himoyasiz qoldiradi.
+    // Three cases for `branch`: absent or null disables the check; an empty
+    // string is an error, because that is almost always an accident and
+    // silently reading it as "disabled" would leave production unprotected.
     final branchRaw = m['branch'];
     if (branchRaw is String && branchRaw.trim().isEmpty) {
       throw ConfigException(
-        '$path.branch: bo\'sh matn bo\'lishi mumkin emas. '
-        'Tekshiruvni o\'chirish uchun maydonni butunlay olib tashlang.',
+        '$path.branch: must not be an empty string. '
+        'Remove the field entirely to disable the check.',
       );
     }
 
@@ -158,7 +160,7 @@ class ConfigLoader {
       final t = ArtifactType.tryParse(a);
       if (t == null) {
         throw ConfigException(
-          '$path.artifacts: "$a" noma\'lum. Ruxsat etilgan: aab, apk',
+          '$path.artifacts: unknown value "$a". Allowed: aab, apk',
         );
       }
       artifacts.add(t);
@@ -166,7 +168,9 @@ class ConfigLoader {
 
     final playMap = _optMap(m, 'play');
     if (playMap == null) {
-      throw ConfigException('$path.play: majburiy — track va status kerak');
+      throw ConfigException(
+        '$path.play: required — both track and status must be set',
+      );
     }
 
     final apkMap = _optMap(m, 'apk');
@@ -203,7 +207,8 @@ class ConfigLoader {
       attach = ArtifactType.tryParse(attachRaw);
       if (attach == null) {
         throw ConfigException(
-          '$tgPath.attach: "$attachRaw" noma\'lum. Ruxsat etilgan: aab, apk, ipa',
+          '$tgPath.attach: unknown value "$attachRaw". '
+          'Allowed: aab, apk, ipa',
         );
       }
     }
@@ -214,8 +219,8 @@ class ConfigLoader {
       final parsed = OversizePolicy.tryParse(policyRaw);
       if (parsed == null) {
         throw ConfigException(
-          '$tgPath.on_oversize: "$policyRaw" noma\'lum. '
-          'Ruxsat etilgan: zip, fail, skip',
+          '$tgPath.on_oversize: unknown value "$policyRaw". '
+          'Allowed: zip, fail, skip',
         );
       }
       policy = parsed;
@@ -231,7 +236,7 @@ class ConfigLoader {
     );
   }
 
-  // ---- Integratsiyalar ----------------------------------------------------
+  // ---- Integrations -------------------------------------------------------
 
   IntegrationsConfig _integrations(Map<String, Object?>? m) {
     if (m == null) return const IntegrationsConfig();
@@ -269,24 +274,24 @@ class ConfigLoader {
     );
   }
 
-  // ---- Yordamchilar -------------------------------------------------------
+  // ---- Helpers ------------------------------------------------------------
 
   Map<String, Object?> _decode(String source, {required bool isJson}) {
     try {
       final decoded = isJson ? jsonDecode(source) : loadYaml(source);
       final normalised = _normalise(decoded);
       if (normalised is! Map<String, Object?>) {
-        throw const ConfigException('Config ildizi obyekt bo\'lishi kerak');
+        throw const ConfigException('The config root must be a mapping');
       }
       return normalised;
     } on ConfigException {
       rethrow;
     } catch (e) {
-      throw ConfigException('Config o\'qib bo\'lmadi: $e');
+      throw ConfigException('Could not parse the config: $e');
     }
   }
 
-  /// `YamlMap`/`YamlList` ni oddiy Dart to'plamlariga aylantiradi.
+  /// Converts `YamlMap`/`YamlList` into plain Dart collections.
   Object? _normalise(Object? node) {
     if (node is Map) {
       return <String, Object?>{
@@ -300,36 +305,35 @@ class ConfigLoader {
   Map<String, Object?> _asMap(Object? v, String path) {
     if (v == null) return <String, Object?>{};
     if (v is Map<String, Object?>) return v;
-    throw ConfigException('$path: obyekt bo\'lishi kerak');
+    throw ConfigException('$path: must be a mapping');
   }
 
   Map<String, Object?>? _optMap(Map<String, Object?> m, String key) {
     final v = m[key];
     if (v == null) return null;
     if (v is Map<String, Object?>) return v;
-    throw ConfigException('$key: obyekt bo\'lishi kerak');
+    throw ConfigException('$key: must be a mapping');
   }
 
   Map<String, Object?> _requireMap(Map<String, Object?> m, String key) {
     final v = _optMap(m, key);
-    if (v == null) throw ConfigException('$key: majburiy maydon');
+    if (v == null) throw ConfigException('$key: required field');
     return v;
   }
 
   String? _optString(Map<String, Object?> m, String key) {
-    final v = m[key];
-    return v == null ? null : v.toString();
+    return m[key]?.toString();
   }
 
   String _requireString(Map<String, Object?> m, String key, String path) {
     final v = _optString(m, key);
-    if (v == null) throw ConfigException('$path.$key: majburiy maydon');
+    if (v == null) throw ConfigException('$path.$key: required field');
     return v;
   }
 
   List<String> _stringList(Object? v, String path) {
     if (v == null) return const [];
-    if (v is! List) throw ConfigException('$path: ro\'yxat bo\'lishi kerak');
+    if (v is! List) throw ConfigException('$path: must be a list');
     return v.map((e) => e.toString()).toList();
   }
 

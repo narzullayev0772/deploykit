@@ -19,6 +19,6 @@ export 'src/core/build_number.dart';
 export 'src/core/exceptions.dart';
 export 'src/core/logger.dart';
 export 'src/core/preflight.dart';
-export 'src/pipeline.dart';
 export 'src/core/process_runner.dart';
+export 'src/pipeline.dart';
 export 'src/runner.dart';

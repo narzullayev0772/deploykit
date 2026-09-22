@@ -1,21 +1,20 @@
-/// Deploy jarayonidagi barcha kutilgan xatolarning asosi.
+/// Base class for every expected failure during a deploy.
 ///
-/// Har bir tur o'z exit kodiga ega — CI shu kod orqali nima yiqilganini
-/// ajratadi. Kodlar dizayn hujjatining 7-bo'limida belgilangan va
-/// o'zgartirilmaydi, chunki ular ommaviy interfeysning bir qismi.
+/// Each subtype carries its own exit code so CI can tell the failures apart.
+/// The codes are part of the public interface and do not change.
 abstract class DeployException implements Exception {
   const DeployException(this.message);
 
   final String message;
 
-  /// Jarayon shu kod bilan tugaydi.
+  /// The process exits with this code.
   int get exitCode;
 
   @override
   String toString() => '$runtimeType: $message';
 }
 
-/// yaml xato, majburiy maydon yo'q, `${ENV}` to'ldirilmagan.
+/// Malformed YAML, a missing required field, or an unresolved `${VAR}`.
 class ConfigException extends DeployException {
   const ConfigException(super.message);
 
@@ -23,7 +22,7 @@ class ConfigException extends DeployException {
   int get exitCode => 2;
 }
 
-/// branch mos emas, vosita yo'q, kalit fayl topilmadi.
+/// Wrong branch, a missing tool, or an unreadable key file.
 class PreflightException extends DeployException {
   const PreflightException(super.message);
 
@@ -31,7 +30,7 @@ class PreflightException extends DeployException {
   int get exitCode => 3;
 }
 
-/// flutter yoki xcodebuild yiqildi.
+/// `flutter` or `xcodebuild` failed.
 class BuildException extends DeployException {
   const BuildException(super.message);
 
@@ -39,7 +38,7 @@ class BuildException extends DeployException {
   int get exitCode => 4;
 }
 
-/// Play yoki App Store Connect rad etdi.
+/// Google Play or App Store Connect rejected the upload.
 class UploadException extends DeployException {
   const UploadException(super.message);
 
@@ -47,10 +46,10 @@ class UploadException extends DeployException {
   int get exitCode => 5;
 }
 
-/// Deploy o'tdi, xabarnoma o'tmadi.
+/// The deploy succeeded but the notification did not go out.
 ///
-/// Bu alohida kod, chunki bu holatda artefakt allaqachon yuklangan —
-/// deploy muvaffaqiyatli, faqat xabar yetib bormadi.
+/// This gets its own code because the artifact is already uploaded at that
+/// point — the deploy itself was fine, only the message failed.
 class NotifyException extends DeployException {
   const NotifyException(super.message);
 

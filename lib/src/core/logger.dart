@@ -1,6 +1,6 @@
 import 'dart:io';
 
-/// Terminalga chiqarish. Rang va batafsillik sozlanadi.
+/// Terminal output. Colour and verbosity are configurable.
 class Logger {
   Logger({
     this.color = true,
@@ -8,9 +8,9 @@ class Logger {
     IOSink? sink,
     IOSink? errSink,
   })  : _sink = sink ?? stdout,
-        // Xatolar stderr'ga ketadi, lekin testda yo'naltirilishi uchun
-        // u ham inject qilinadi. `sink` berilib `errSink` berilmasa,
-        // ikkalasi ham o'sha yerga yoziladi — test uchun kutilgan xulq.
+        // Errors go to stderr, but the sink is injectable so tests can
+        // capture them. Passing `sink` without `errSink` sends both to the
+        // same place, which is what a test wants.
         _errSink = errSink ?? sink ?? stderr;
 
   final bool color;
@@ -32,7 +32,7 @@ class Logger {
   void warn(String m) => _sink.writeln('${_paint(_yellow, '!')} $m');
   void err(String m) => _errSink.writeln('${_paint(_red, '✗')} $m');
 
-  /// Faqat `--verbose` bilan ko'rinadi — masalan bajarilayotgan buyruqlar.
+  /// Only shown with `--verbose` — the commands being run, for example.
   void detail(String m) {
     if (verbose) _sink.writeln(_paint(_dim, '  $m'));
   }

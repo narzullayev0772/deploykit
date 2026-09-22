@@ -1,11 +1,11 @@
 import 'exceptions.dart';
 import 'process_runner.dart';
 
-/// Deploy faqat ruxsat etilgan branch'dan bajarilishini ta'minlaydi.
+/// Ensures a deploy only runs from an allowed branch.
 ///
-/// Bash skriptlaridan farqi: bu yerda interaktiv savol yo'q. `read -p`
-/// CI'da osilib qolardi, shuning uchun mos kelmagan branch darhol xato
-/// beradi va ataylab chetlab o'tish faqat `--allow-branch-mismatch` orqali.
+/// Unlike the shell scripts this replaces, there is no interactive prompt: a
+/// `read -p` hangs forever in CI. A mismatched branch fails immediately, and
+/// the only way past it is an explicit `--allow-branch-mismatch`.
 class BranchGuard {
   const BranchGuard(this.runner);
 
@@ -19,14 +19,14 @@ class BranchGuard {
     );
     if (!r.ok) {
       throw PreflightException(
-        'git branch nomini aniqlab bo\'lmadi: ${r.stderr.trim()}',
+        'Could not determine the current git branch: ${r.stderr.trim()}',
       );
     }
     return r.stdout.trim();
   }
 
-  /// [pattern] — regex. `null` bo'lsa tekshiruv umuman bajarilmaydi
-  /// (git ham chaqirilmaydi).
+  /// [pattern] is a regular expression. When `null` the check is skipped
+  /// entirely — git is not even invoked.
   Future<void> check(
     String projectRoot,
     String? pattern, {
@@ -40,8 +40,8 @@ class BranchGuard {
     if (allowMismatch) return;
 
     throw PreflightException(
-      'Joriy branch "$branch" talab qilingan shaklga mos emas: $pattern\n'
-      'Ataylab davom ettirish uchun --allow-branch-mismatch bering.',
+      'Current branch "$branch" does not match the required pattern: '
+      '$pattern\nPass --allow-branch-mismatch to proceed anyway.',
     );
   }
 }

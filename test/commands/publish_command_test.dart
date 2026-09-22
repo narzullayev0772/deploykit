@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:args/command_runner.dart';
 import 'package:deploykit/src/commands/build_command.dart';
 import 'package:deploykit/src/commands/publish_command.dart';
 import 'package:deploykit/src/commands/upload_command.dart';
 import 'package:deploykit/src/core/logger.dart';
 import 'package:deploykit/src/core/process_runner.dart';
-import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
@@ -120,7 +120,7 @@ void main() {
     test('--dev va --release birga berilsa xato', () async {
       await expectLater(
         _run(_project(), ['publish', '--dev', '--release', '--dry-run']),
-        throwsA(predicate((e) => '$e'.contains('bitta muhit'))),
+        throwsA(predicate((e) => '$e'.contains('exactly one environment'))),
       );
     });
 

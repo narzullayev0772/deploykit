@@ -5,11 +5,11 @@ import '../build/build_artifact.dart';
 import '../config/deploy_config.dart';
 import 'exceptions.dart';
 
-/// `build` va `upload` orasidagi ko'prik.
+/// The bridge between `build` and `upload`.
 ///
-/// `build` nimani, qaysi muhit uchun va qaysi raqam bilan qurganini yozadi;
-/// `upload` shu yerdan o'qiydi. Shuning uchun yiqilgan yuklashni qayta
-/// urinish xavfsiz — bir xil artefakt, bir xil versionCode.
+/// `build` records what it produced, for which environment, and under which
+/// build number; `upload` reads it back. That is what makes retrying a failed
+/// upload safe — same artifact, same versionCode.
 class BuildManifest {
   const BuildManifest({
     required this.env,
@@ -30,14 +30,14 @@ class BuildManifest {
   BuildArtifact? artifactOf(ArtifactType type) =>
       artifacts.where((a) => a.type == type).firstOrNull;
 
-  /// Manifestdagi muhit kutilganidan farq qilsa xato.
+  /// Fails when the manifest's environment is not the expected one.
   ///
-  /// Bu dev artefaktini tasodifan production'ga yuklashdan himoya qiladi.
+  /// This is what stops a dev artifact from being uploaded to production.
   void verifyEnv(String expected) {
     if (env == expected) return;
     throw PreflightException(
-      'Oxirgi build "$env" muhiti uchun qurilgan, siz esa "$expected" ga '
-      'yuklamoqchisiz. Avval `deploykit build --env $expected` bajaring.',
+      'The last build was made for "$env" but you are uploading to '
+      '"$expected". Run `deploykit build --env $expected` first.',
     );
   }
 
@@ -57,7 +57,7 @@ class BuildManifest {
   static BuildManifest read(File file) {
     if (!file.existsSync()) {
       throw PreflightException(
-        '${file.path} topilmadi. Avval `deploykit build` bajaring.',
+        '${file.path} not found. Run `deploykit build` first.',
       );
     }
     try {
@@ -74,7 +74,7 @@ class BuildManifest {
     } on PreflightException {
       rethrow;
     } catch (e) {
-      throw PreflightException('${file.path} o\'qib bo\'lmadi: $e');
+      throw PreflightException('Could not read ${file.path}: $e');
     }
   }
 }

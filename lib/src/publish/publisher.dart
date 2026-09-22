@@ -1,19 +1,19 @@
 import '../build/build_artifact.dart';
 
-/// Bitta yuklash natijasi.
+/// The outcome of one upload.
 class PublishResult {
   const PublishResult({required this.description, this.versionCode});
 
-  /// Foydalanuvchiga ko'rsatiladigan bir qatorli tavsif.
+  /// A one-line description to show the user.
   final String description;
 
-  /// Play bergan versionCode. iOS uchun `null`.
+  /// The versionCode assigned by Play. `null` for iOS.
   final int? versionCode;
 }
 
-/// Artefaktni do'konga yuklaydi.
+/// Uploads an artifact to a store.
 abstract class Publisher {
-  /// [dryRun] `true` bo'lsa hech qanday tashqi o'zgarish qilinmaydi, lekin
-  /// bajarilishi mumkin bo'lgan tekshiruvlar baribir bajariladi.
+  /// With [dryRun] nothing external changes, but every check that can still
+  /// run does run.
   Future<PublishResult> publish(BuildArtifact artifact, {required bool dryRun});
 }

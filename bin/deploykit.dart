@@ -12,7 +12,7 @@ Future<void> main(List<String> args) async {
   try {
     exitCode = await DeploykitRunner().run(args);
   } on DeployException catch (e) {
-    // Kutilgan xato: foydalanuvchiga faqat xabar, stack trace emas.
+    // An expected failure: show the message, not a stack trace.
     logger.err(e.message);
     exitCode = e.exitCode;
   } on UsageException catch (e) {
@@ -22,7 +22,7 @@ Future<void> main(List<String> args) async {
     stderr.writeln(e.message);
     exitCode = 64;
   } catch (e, st) {
-    logger.err('Kutilmagan xato: $e');
+    logger.err('Unexpected error: $e');
     if (args.contains('--verbose') || args.contains('-v')) {
       stderr.writeln(st);
     }

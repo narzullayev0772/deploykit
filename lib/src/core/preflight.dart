@@ -26,17 +26,16 @@ class CheckResult {
   final String detail;
 }
 
-/// Play service-account kalitini haqiqatdan tekshiradigan funksiya.
+/// Actually exercises the Play service-account key.
 ///
-/// Inject qilinadi, shuning uchun testlar tarmoqqa chiqmaydi.
+/// Injected so tests never touch the network.
 typedef PlayProbe = Future<void> Function(String serviceAccountPath);
 
-/// Deploy'dan oldin barcha shartlarni tekshiradi.
+/// Verifies every precondition before a deploy starts.
 ///
-/// `doctor` [runAll] ni chaqirib hammasini ko'rsatadi; `publish`
-/// [assertReady] ni chaqirib birinchi `fail` da to'xtaydi. Ikkalasi bir xil
-/// kodni ishlatadi, shuning uchun `doctor` yashil bo'lsa `publish` ham
-/// o'tishi kafolatlanadi.
+/// `doctor` calls [runAll] and reports everything; `publish` calls
+/// [assertReady] and stops at the first failure. Both run the same code, so a
+/// green `doctor` guarantees `publish` gets past its checks.
 class Preflight {
   const Preflight({
     required this.runner,
@@ -66,14 +65,14 @@ class Preflight {
     final needIos = ios && env.ios != null;
 
     return [
-      // flutter va git haqiqatdan ishga tushiriladi — buzilgan o'rnatish
-      // "mavjud" bo'lishi mumkin.
+      // flutter and git are actually executed — a broken install can still
+      // be "present".
       await _tool('flutter', args: ['--version'], required: true),
       await _tool('git', args: ['--version'], required: true),
       ...await _gitChecks(allowBranchMismatch: allowBranchMismatch),
       await _tool('xcodebuild', args: ['-version'], required: needIos),
-      // vtool sinov rejimiga ega emas: `vtool -help` ham 1 qaytaradi.
-      // Shuning uchun faqat mavjudligi tekshiriladi.
+      // vtool has no dry-run mode: even `vtool -help` exits 1. So only its
+      // presence is checked.
       await _tool('vtool', required: needIos),
       _buildNumberFile(),
       if (needAndroid) _keyFile(
@@ -91,7 +90,7 @@ class Preflight {
     ];
   }
 
-  /// Birinchi `fail` da to'xtaydi.
+  /// Throws at the first failing check.
   Future<void> assertReady({
     bool checkNetwork = true,
     bool android = true,
@@ -113,16 +112,16 @@ class Preflight {
     if (failed.isEmpty) return;
 
     throw PreflightException(
-      'Deploy uchun shartlar bajarilmagan:\n'
+      'Preconditions for this deploy are not met:\n'
       '${failed.map((f) => '  ✗ ${f.name}: ${f.detail}').join('\n')}\n'
-      'Batafsil: deploykit doctor',
+      'Run `deploykit doctor` for the full report.',
     );
   }
 
-  // ---- Alohida tekshiruvlar ----------------------------------------------
+  // ---- Individual checks --------------------------------------------------
 
-  /// [args] berilsa vosita o'sha argumentlar bilan ishga tushiriladi;
-  /// berilmasa faqat PATH da borligi tekshiriladi.
+  /// With [args] the tool is executed; without them only its presence on
+  /// PATH is checked.
   Future<CheckResult> _tool(
     String executable, {
     List<String>? args,
@@ -132,35 +131,35 @@ class Preflight {
         ? await runner.run('which', [executable])
         : await runner.run(executable, args);
 
-    if (r.ok) return CheckResult.pass(executable, 'mavjud');
+    if (r.ok) return CheckResult.pass(executable, 'available');
 
     return required
-        ? CheckResult.fail(executable, 'topilmadi yoki ishlamadi')
+        ? CheckResult.fail(executable, 'not found, or failed to run')
         : CheckResult.warn(
             executable,
-            'topilmadi — bu muhit uchun kerak emas',
+            'not found — not needed for this environment',
           );
   }
 
-  /// Git repo va branch tekshiruvi.
+  /// Git repository and branch checks.
   ///
-  /// Repo bo'lmasligi `branch` regex'i sozlangan holdagina `fail`: regex bor
-  /// bo'lsa, uni tekshira olmaslik himoyaning ishlamayotganini bildiradi.
-  /// Regex yo'q bo'lsa git umuman kerak emas.
+  /// A missing repository only fails when a `branch` pattern is configured:
+  /// being unable to check it means the guard is not working. Without a
+  /// pattern, git is not needed at all.
   Future<List<CheckResult>> _gitChecks({
     required bool allowBranchMismatch,
   }) async {
     final pattern = env.branch;
     if (pattern == null) {
-      return const [CheckResult.pass('branch tekshiruvi', 'o\'chirilgan')];
+      return const [CheckResult.pass('branch check', 'disabled')];
     }
 
     if (!Directory('$projectRoot/.git').existsSync()) {
       return const [
         CheckResult.fail(
           'git repo',
-          'topilmadi, lekin deploy.yaml da branch regex sozlangan — '
-              'himoya ishlamaydi',
+          'not found, but deploy.yaml configures a branch pattern — '
+              'the guard cannot work',
         ),
       ];
     }
@@ -168,15 +167,19 @@ class Preflight {
     try {
       final branch = await BranchGuard(runner).currentBranch(projectRoot);
       if (RegExp(pattern).hasMatch(branch)) {
-        return [CheckResult.pass('branch', '$branch — mos')];
+        return [CheckResult.pass('branch', '$branch — matches')];
       }
       return [
         allowBranchMismatch
             ? CheckResult.warn(
                 'branch',
-                '$branch "$pattern" ga mos emas (--allow-branch-mismatch)',
+                '$branch does not match "$pattern" '
+                    '(--allow-branch-mismatch)',
               )
-            : CheckResult.fail('branch', '$branch "$pattern" ga mos emas'),
+            : CheckResult.fail(
+                'branch',
+                '$branch does not match "$pattern"',
+              ),
       ];
     } on PreflightException catch (e) {
       return [CheckResult.fail('branch', e.message)];
@@ -188,39 +191,39 @@ class Preflight {
     if (!file.existsSync()) {
       return CheckResult.fail(
         config.buildNumberFile,
-        'topilmadi — `deploykit init` bilan yarating',
+        'not found — create it with `deploykit init`',
       );
     }
     final raw = file.readAsStringSync().trim();
     if (int.tryParse(raw) == null) {
       return CheckResult.fail(
         config.buildNumberFile,
-        'butun son emas: "$raw"',
+        'not an integer: "$raw"',
       );
     }
-    return CheckResult.pass(config.buildNumberFile, 'joriy raqam $raw');
+    return CheckResult.pass(config.buildNumberFile, 'currently $raw');
   }
 
-  /// Kalit faylni mavjudligi emas, **o'qilishi** bo'yicha tekshiradi.
+  /// Checks that a key file is **readable**, not merely present.
   ///
-  /// Bo'sh (0 bayt) `.p8` haqiqiy holat: `the legacy scripts` da skriptlar o'chirilgach
-  /// aynan shunday fayllar qolgan edi. Mavjudlik tekshiruvi bunday faylni
-  /// o'tkazib yuborardi va xato faqat yuklash paytida bilinardi.
+  /// An empty (0-byte) `.p8` is a real situation — it is what a botched
+  /// restore leaves behind. An existence check waves such a file through and
+  /// the failure only surfaces during the upload.
   CheckResult _keyFile(String name, String? path, String configPath) {
     if (path == null) {
-      return CheckResult.fail(name, '$configPath sozlanmagan');
+      return CheckResult.fail(name, '$configPath is not configured');
     }
 
     final file = File(path);
-    if (!file.existsSync()) return CheckResult.fail(name, 'topilmadi: $path');
+    if (!file.existsSync()) return CheckResult.fail(name, 'not found: $path');
 
     try {
       final length = file.lengthSync();
-      if (length == 0) return CheckResult.fail(name, 'fayl bo\'sh: $path');
+      if (length == 0) return CheckResult.fail(name, 'file is empty: $path');
       file.openSync().closeSync();
-      return CheckResult.pass(name, '$length bayt');
+      return CheckResult.pass(name, '$length bytes');
     } on FileSystemException catch (e) {
-      return CheckResult.fail(name, 'o\'qib bo\'lmadi: ${e.message}');
+      return CheckResult.fail(name, 'could not read it: ${e.message}');
     }
   }
 
@@ -229,12 +232,12 @@ class Preflight {
     if (path == null) {
       return const CheckResult.fail(
         'Play API',
-        'integrations.play.service_account sozlanmagan',
+        'integrations.play.service_account is not configured',
       );
     }
     try {
       await playProbe(path);
-      return const CheckResult.pass('Play API', 'kalit qabul qilindi');
+      return const CheckResult.pass('Play API', 'key accepted');
     } catch (e) {
       return CheckResult.fail('Play API', '$e');
     }
@@ -245,7 +248,7 @@ class Preflight {
     if (creds == null) {
       return const CheckResult.fail(
         'Telegram',
-        'notify.telegram sozlangan, lekin integrations.telegram yo\'q',
+        'notify.telegram is set but integrations.telegram is missing',
       );
     }
     try {
@@ -253,9 +256,12 @@ class Preflight {
         Uri.parse('https://api.telegram.org/bot${creds.botToken}/getMe'),
       );
       if (r.statusCode == 200 && r.body.contains('"ok":true')) {
-        return const CheckResult.pass('Telegram', 'bot tokeni ishlayapti');
+        return const CheckResult.pass('Telegram', 'bot token works');
       }
-      return CheckResult.fail('Telegram', 'token rad etildi (HTTP ${r.statusCode})');
+      return CheckResult.fail(
+        'Telegram',
+        'token rejected (HTTP ${r.statusCode})',
+      );
     } catch (e) {
       return CheckResult.fail('Telegram', '$e');
     }

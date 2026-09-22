@@ -10,7 +10,7 @@ import '../core/exceptions.dart';
 import '../core/logger.dart';
 import 'notifier.dart';
 
-/// Telegram kanaliga xabar va artefakt yuboradi.
+/// Sends a message, and optionally an artifact, to a Telegram chat.
 class TelegramNotifier implements Notifier {
   const TelegramNotifier({
     required http.Client client,
@@ -29,10 +29,10 @@ class TelegramNotifier implements Notifier {
   Uri _api(String method) =>
       Uri.parse('https://api.telegram.org/bot${creds.botToken}/$method');
 
-  /// Hajm siyosatini qo'llaydi.
+  /// Applies the size policy.
   ///
-  /// Qaytaradi: yuboriladigan fayl, yoki `null` (yubormaslik).
-  /// Chegaradan oshgan va siyosat ruxsat bermagan holatda xato otadi.
+  /// Returns the file to send, or `null` to send nothing. Throws when the
+  /// artifact is over the limit and the policy does not allow it through.
   Future<File?> resolveAttachment(BuildArtifact artifact) async {
     final file = File(artifact.path);
     final size = file.lengthSync();
@@ -40,29 +40,29 @@ class TelegramNotifier implements Notifier {
     if (size <= _maxBytes) return file;
 
     logger.warn(
-      '${artifact.type.name.toUpperCase()} ${_mb(size)} — '
-      'chegara ${config.maxSizeMb}MB.',
+      '${artifact.type.name.toUpperCase()} is ${_mb(size)} — '
+      'the limit is ${config.maxSizeMb}MB.',
     );
 
     switch (config.onOversize) {
       case OversizePolicy.skip:
-        logger.warn('Fayl yuborilmaydi (on_oversize: skip).');
+        logger.warn('Skipping the attachment (on_oversize: skip).');
         return null;
 
       case OversizePolicy.fail:
         throw NotifyException(
-          'Artefakt ${_mb(size)}, Telegram cheklovi ${config.maxSizeMb}MB. '
-          'on_oversize: fail — yuklash to\'xtatildi.',
+          'The artifact is ${_mb(size)} and the Telegram limit is '
+          '${config.maxSizeMb}MB. on_oversize is set to fail.',
         );
 
       case OversizePolicy.zip:
-        // APK ichidagi native kutubxonalar (libapp.so, libflutter.so)
-        // AGP standart sozlamasida SIQILMAGAN holda saqlanadi, chunki
-        // Android ularni to'g'ridan-to'g'ri mmap qiladi. Shuning uchun
-        // tashqi zip sezilarli foyda berishi mumkin.
+        // Native libraries inside an APK (libapp.so, libflutter.so) are
+        // STORED uncompressed under AGP's defaults, because Android mmaps
+        // them straight out of the archive. An outer zip can therefore help
+        // a great deal.
         //
-        // Lekin foyda TAXMIN QILINMAYDI — zip yaratiladi va o'lchanadi.
-        logger.info('Zip qilinmoqda ...');
+        // But the saving is never ASSUMED — the zip is made and measured.
+        logger.info('Zipping ...');
         final zipped = _zip(file);
         final zippedSize = zipped.lengthSync();
 
@@ -70,10 +70,11 @@ class TelegramNotifier implements Notifier {
 
         if (zippedSize > _maxBytes) {
           throw NotifyException(
-            'Zip qilingandan keyin ham katta: ${_mb(size)} → '
-            '${_mb(zippedSize)}, Telegram cheklovi ${config.maxSizeMb}MB.\n'
-            'Artefaktni kichraytiring (--split-per-abi, --obfuscate) yoki '
-            'boshqa kanaldan foydalaning.',
+            'Still too large after zipping: ${_mb(size)} → '
+            '${_mb(zippedSize)}, and the Telegram limit is '
+            '${config.maxSizeMb}MB.\n'
+            'Shrink the artifact (--split-per-abi, --obfuscate) or use a '
+            'different channel.',
           );
         }
         return zipped;
@@ -98,7 +99,8 @@ class TelegramNotifier implements Notifier {
 
     if (dryRun) {
       logger.info(
-        'Telegram: ${file == null ? 'matn' : 'fayl'} yuboriladi (dry-run)',
+        'Telegram: would send ${file == null ? 'a message' : 'a file'} '
+        '(dry run)',
       );
       return;
     }
@@ -113,10 +115,10 @@ class TelegramNotifier implements Notifier {
           );
 
     _verify(response);
-    logger.ok('Telegram xabari yuborildi');
+    logger.ok('Telegram notification sent');
   }
 
-  /// Izoh matnini yasaydi. Ochiq — alohida test qilinadi.
+  /// Builds the caption. Public so it can be tested on its own.
   String buildCaption(
     NotifyPayload payload, {
     required bool zipped,
@@ -129,7 +131,7 @@ class TelegramNotifier implements Notifier {
       final original = File(artifact.path).lengthSync();
       if (zipped && zippedBytes != null) {
         buffer.write(' · ${_mb(original)} → ${_mb(zippedBytes)} (zip)');
-        buffer.write('\n⚠️ Avval arxivni oching, keyin o\'rnating.');
+        buffer.write('\n⚠️ Extract the archive before installing.');
       } else {
         buffer.write(' · ${_mb(original)}');
       }
@@ -157,16 +159,15 @@ class TelegramNotifier implements Notifier {
           buildCaption(payload, zipped: zipped, zippedBytes: zippedBytes)
       ..files.add(await http.MultipartFile.fromPath('document', file.path));
 
-    logger.info('Telegram`ga yuborilmoqda (${_mb(file.lengthSync())}) ...');
+    logger.info('Sending to Telegram (${_mb(file.lengthSync())}) ...');
     return http.Response.fromStream(await _client.send(request));
   }
 
-  /// Telegram haqiqiy muvaffaqiyatni faqat JSON dagi `ok` maydonida
-  /// bildiradi.
+  /// Telegram signals real success only through the `ok` field of its JSON
+  /// body.
   ///
-  /// Bash skriptida bu muammo edi: `curl` HTTP 413 da ham 0 qaytaradi,
-  /// shuning uchun rad etilgan yuklash jimgina muvaffaqiyat deb
-  /// hisoblanardi.
+  /// This bites in shell scripts: `curl` exits 0 even on HTTP 413, so a
+  /// rejected upload looks like a success.
   void _verify(http.Response response) {
     Map<String, Object?>? body;
     try {
@@ -179,8 +180,8 @@ class TelegramNotifier implements Notifier {
 
     final description = body?['description'] as String? ?? response.body.trim();
     throw NotifyException(
-      'Telegram yuborishni rad etdi (HTTP ${response.statusCode}): '
-      '${description.isEmpty ? '(tavsif yo\'q)' : description}',
+      'Telegram rejected the request (HTTP ${response.statusCode}): '
+      '${description.isEmpty ? '(no description)' : description}',
     );
   }
 

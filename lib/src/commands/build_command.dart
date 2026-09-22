@@ -5,7 +5,7 @@ import '../core/process_runner.dart';
 import '../pipeline.dart';
 import 'deploy_command.dart';
 
-/// Artefaktlarni quradi va `.deploykit/last_build.json` yozadi.
+/// Builds the artifacts and writes `.deploykit/last_build.json`.
 class BuildCommand extends DeployCommand {
   BuildCommand({
     required super.workingDir,
@@ -21,7 +21,7 @@ class BuildCommand extends DeployCommand {
     argParser.addFlag(
       'dry-run',
       negatable: false,
-      help: 'Hech nima qurmay, rejani ko\'rsatish.',
+      help: 'Show the plan without building anything.',
     );
   }
 
@@ -35,7 +35,7 @@ class BuildCommand extends DeployCommand {
 
   @override
   String get description =>
-      'Artefaktlarni quradi (yuklamaydi). upload alohida chaqiriladi.';
+      'Build the artifacts without uploading. Run `upload` separately.';
 
   @override
   Future<int> run() async {

@@ -184,7 +184,7 @@ void main() {
       final rs = await _pre(_project(emptyP8: true)).runAll();
       final r = _find(rs, '.p8');
       expect(r.status, CheckStatus.fail);
-      expect(r.detail, contains('bo\'sh'));
+      expect(r.detail, contains('empty'));
     });
 
     test('kalit fayli yo`q bo`lsa fail, yo`l ko`rsatiladi', () async {

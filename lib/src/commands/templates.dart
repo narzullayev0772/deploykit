@@ -1,41 +1,42 @@
-/// `deploykit init` yozadigan fayllar.
+/// Files written by `deploykit init`.
 ///
-/// Sxema dizayn hujjatining 3-bo'limiga mos. Izohlar ataylab ko'p — bu fayl
-/// foydalanuvchi ko'radigan birinchi narsa va u hujjat vazifasini ham
-/// bajaradi.
+/// The comments are deliberately generous: this file is the first thing a
+/// user sees, and it doubles as the reference documentation for the schema.
 const deployYamlTemplate = r'''
-# deploy.yaml — deploykit sozlamasi
-# Maxfiy qiymatlar bu yerda SAQLANMAYDI: faqat ${VAR} havolalari turadi.
-# Qiymatlar .env faylidan yoki muhit o'zgaruvchilaridan o'qiladi,
-# shuning uchun bu faylni bemalol git'ga qo'shish mumkin.
+# deploy.yaml — deploykit configuration
+#
+# Secrets are NOT stored here. Only ${VAR} references appear in this file;
+# the values come from .env or from environment variables. That is what makes
+# this file safe to commit.
 version: 1
 
 app:
-  # Flutter loyiha ildizi — shu faylga nisbatan.
+  # Flutter project root, relative to this file.
   root: .
-  android_package: uz.example.app
+  android_package: com.example.app
 
 env_file: .env
 build_number_file: .last_build_number
 
 environments:
   dev:
-    # Branch tekshiruvi (regex). Tekshiruvni o'chirish uchun qatorni
-    # butunlay olib tashlang. Bo'sh qoldirish XATO beradi — bu ataylab,
-    # chunki bo'sh qiymat odatda tasodif bo'ladi.
+    # Branch guard (regular expression). Remove the line entirely to disable
+    # the check. Leaving it empty is an ERROR — that is deliberate, because an
+    # empty value is almost always an accident, and silently treating it as
+    # "disabled" would leave production unprotected.
     branch: '^versions/.+/dev$'
 
     dart_defines:
       PROD_URL: 'false'
       INSPECTOR: 'true'
 
-    # flutter build ga qo'shiladigan qo'shimcha argumentlar.
+    # Extra arguments appended to `flutter build`.
     build_args: []
 
     android:
       artifacts: [aab, apk]
       apk:
-        # Fat APK ~112MB bo'ladi va Telegram'ning 50MB cheklovidan oshadi.
+        # A fat APK is often >100MB, well over Telegram's 50MB bot limit.
         split_per_abi: true
         target_platform: android-arm64
       play:
@@ -48,23 +49,23 @@ environments:
         message: '⚠️ DEV build, test only'
         attach: apk
         max_size_mb: 50
-        # zip | fail | skip — chegaradan oshganda nima qilish.
+        # zip | fail | skip — what to do when the artifact is over the limit.
         on_oversize: zip
 
   release:
     branch: '^versions/.+/release$'
 
-    # Bo'sh — bu ATAYLAB. Dart tomonidagi defaultValue lar allaqachon
-    # production qiymatlari, shuning uchun hech qanday --dart-define
-    # uzatilmaydi. Bu yerga PROD_URL: 'true' yozish ishlaydi, lekin
-    # niyatni yashiradi.
+    # Empty ON PURPOSE. The defaultValue of each bool.fromEnvironment in your
+    # Dart code is already the production value, so a production build passes
+    # no --dart-define at all. Writing PROD_URL: 'true' here would work, but
+    # it hides that intent.
     dart_defines: {}
 
     android:
       artifacts: [aab]
       play:
         track: production
-        # draft — Play Console'da qo'lda chiqariladi.
+        # draft — you roll the release out by hand in the Play Console.
         status: draft
     ios:
       testflight_internal_only: false
@@ -74,12 +75,15 @@ environments:
 
 integrations:
   play:
-    # Service-account JSON faylining yo'li.
+    # Path to the service-account JSON file.
+    #
+    # Note: use block style here, not flow style. In `{service_account: ${SA}}`
+    # YAML reads the `{` of `${SA}` as a nested flow mapping and fails.
     service_account: ${PLAY_SERVICE_ACCOUNT}
   app_store:
     key_id: ${ASC_KEY_ID}
     issuer_id: ${ASC_ISSUER_ID}
-    # .p8 faylining yo'li.
+    # Path to the .p8 file.
     private_key: ${ASC_PRIVATE_KEY}
     team_id: ${ASC_TEAM_ID}
   telegram:
@@ -87,16 +91,16 @@ integrations:
     chat_id: ${TELEGRAM_CHAT_ID}
 ''';
 
-/// `.env.example` — deploy.yaml dagi har bir `${VAR}` shu yerda bo'lishi shart.
+/// `.env.example` — every `${VAR}` used in deploy.yaml must appear here.
 const envExampleTemplate = '''
-# Bu faylni .env ga nusxalang va to'ldiring. .env git'ga QO'SHILMAYDI.
-# Har bir qiymatni muhit o'zgaruvchisi sifatida ham berish mumkin —
-# u .env dagi qiymatdan ustun turadi (CI uchun qulay).
+# Copy this file to .env and fill in the values. .env is NOT committed.
+# Every value can also be supplied as an environment variable, which takes
+# precedence over .env — convenient in CI.
 
-# Google Play service-account JSON faylining yo'li
+# Path to the Google Play service-account JSON file
 PLAY_SERVICE_ACCOUNT=
 
-# App Store Connect API kaliti
+# App Store Connect API key
 ASC_KEY_ID=
 ASC_ISSUER_ID=
 ASC_PRIVATE_KEY=

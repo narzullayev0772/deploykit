@@ -19,17 +19,17 @@ import 'publish/ios_publisher.dart';
 import 'publish/play_publisher.dart';
 import 'publish/publisher.dart';
 
-/// Play uchun avtorizatsiyalangan client yasaydigan funksiya.
+/// Builds an authorised client for Play.
 ///
-/// Inject qilinadi, shuning uchun testlar haqiqiy service-account va
-/// tarmoqsiz ham to'liq oqimni tekshiradi.
+/// Injected so tests can exercise the whole flow without a real
+/// service-account or a network.
 typedef PlayClientFactory = Future<http.Client> Function(
   String serviceAccountPath,
 );
 
-/// `build`, `upload` va `publish` ning umumiy mantig'i.
+/// The shared logic behind `build`, `upload` and `publish`.
 ///
-/// Buyruqlar faqat flag o'qiydi va bu yerga uzatadi.
+/// The commands only read flags and hand over to this.
 class DeployPipeline {
   DeployPipeline({
     required this.config,
@@ -55,7 +55,7 @@ class DeployPipeline {
   File get _manifestFile => File('$projectRoot/.deploykit/last_build.json');
   File get _buildNumberFile => File('$projectRoot/${config.buildNumberFile}');
 
-  /// Artefaktlarni quradi va manifest yozadi.
+  /// Builds the artifacts and writes the manifest.
   Future<BuildManifest> build({
     required bool android,
     required bool ios,
@@ -66,8 +66,8 @@ class DeployPipeline {
       android: android,
       ios: ios,
       allowBranchMismatch: allowBranchMismatch,
-      // Build bosqichida tarmoq shart emas; yuklashdan oldin baribir
-      // tekshiriladi.
+      // The network is not needed to build; it is checked again before the
+      // upload anyway.
       checkNetwork: false,
     );
 
@@ -76,7 +76,7 @@ class DeployPipeline {
 
     if (dryRun) {
       final next = BuildNumber(_buildNumberFile).read() + 1;
-      logger.info('Quriladi: v$buildName+$next');
+      logger.info('Would build: v$buildName+$next');
       _describePlannedArtifacts(android: android, ios: ios);
       return BuildManifest(
         env: env.name,
@@ -87,11 +87,11 @@ class DeployPipeline {
       );
     }
 
-    // Raqam build'dan OLDIN oshiriladi. Build yiqilsa raqam o'tkazib
-    // yuboriladi — zararsiz. Qayta ishlatish esa halokatli: Play
-    // takrorlangan versionCode ni rad etadi.
+    // The number is bumped BEFORE the build. If the build fails the number
+    // is skipped, which is harmless. Reusing one is not: Play rejects a
+    // duplicate versionCode.
     final buildNumber = BuildNumber(_buildNumberFile).increment();
-    logger.info('Versiya: $buildName+$buildNumber');
+    logger.info('Version: $buildName+$buildNumber');
 
     final artifacts = <BuildArtifact>[];
 
@@ -110,7 +110,7 @@ class DeployPipeline {
       final asc = config.integrations.appStore;
       if (asc == null) {
         throw const ConfigException(
-          'iOS quriladi, lekin integrations.app_store sozlanmagan.',
+          'iOS is configured to build, but integrations.app_store is not set.',
         );
       }
       artifacts.add(
@@ -132,14 +132,14 @@ class DeployPipeline {
       artifacts: artifacts,
     )..write(_manifestFile);
 
-    logger.ok('Build tugadi: v${manifest.version}');
+    logger.ok('Build complete: v${manifest.version}');
     return manifest;
   }
 
-  /// Manifestdagi artefaktlarni yuklaydi va xabar yuboradi.
+  /// Uploads the artifacts in the manifest and sends the notification.
   ///
-  /// Build raqamini **oshirmaydi** — shuning uchun yiqilgan yuklashni qayta
-  /// urinish xavfsiz.
+  /// Does **not** bump the build number, which is what makes retrying a
+  /// failed upload safe.
   Future<void> upload({
     required BuildManifest manifest,
     required bool android,
@@ -186,11 +186,12 @@ class DeployPipeline {
     final creds = config.integrations.play;
     if (play == null || creds == null) {
       throw const ConfigException(
-        'AAB yuklanadi, lekin play sozlamasi yoki service-account yo\'q.',
+        'An AAB is being uploaded, but the play settings or the '
+        'service-account are missing.',
       );
     }
 
-    // dry-run da avtorizatsiya qilinmaydi — tarmoqqa chiqmaymiz.
+    // No authorisation for a dry run — we stay off the network.
     final httpClient =
         dryRun ? client : await _playClientFactory(creds.serviceAccount);
 
@@ -213,15 +214,16 @@ class DeployPipeline {
     final asc = config.integrations.appStore;
     if (asc == null) {
       throw const ConfigException(
-        'IPA yuklanadi, lekin integrations.app_store sozlanmagan.',
+        'An IPA is being uploaded, but integrations.app_store is not set.',
       );
     }
     return IosPublisher(runner: runner, asc: asc, logger: logger)
         .publish(ipa, dryRun: dryRun);
   }
 
-  /// Xabarnoma yiqilsa deploy yiqilmaydi — artefakt allaqachon yuklangan.
-  /// Lekin xato yashirilmaydi va chaqiruvchiga qaytariladi.
+  /// A failed notification is not a failed deploy — the artifact is already
+  /// uploaded by then. The error is still surfaced to the caller, not
+  /// swallowed.
   Future<void> _notify(
     BuildManifest manifest, {
     required bool android,
@@ -282,13 +284,13 @@ class DeployPipeline {
       final a = env.android!;
       logger.info(
         '  Android: ${a.artifacts.map((t) => t.name).join(', ')} → '
-        'Play "${a.play.track}" (${a.play.status})',
+        'Play track "${a.play.track}" (${a.play.status})',
       );
     }
     if (ios && env.ios != null) {
       logger.info(
         '  iOS: ipa → App Store Connect'
-        '${env.ios!.testflightInternalOnly ? ' (TestFlight, faqat ichki)' : ''}',
+        '${env.ios!.testflightInternalOnly ? ' (TestFlight, internal only)' : ''}',
       );
     }
     final tg = env.notify?.telegram;

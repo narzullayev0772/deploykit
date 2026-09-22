@@ -1,0 +1,4 @@
+# Internal development artefacts — not part of the published package.
+docs/
+test/
+.github/

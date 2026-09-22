@@ -5,7 +5,7 @@ import '../core/process_runner.dart';
 import '../pipeline.dart';
 import 'deploy_command.dart';
 
-/// Oxirgi build'ni yuklaydi. Build raqamini oshirmaydi.
+/// Uploads the last build. Never bumps the build number.
 class UploadCommand extends DeployCommand {
   UploadCommand({
     required super.workingDir,
@@ -21,7 +21,7 @@ class UploadCommand extends DeployCommand {
     argParser.addFlag(
       'dry-run',
       negatable: false,
-      help: 'Hech nima yuklamay, rejani ko\'rsatish.',
+      help: 'Show the plan without uploading anything.',
     );
   }
 
@@ -35,7 +35,7 @@ class UploadCommand extends DeployCommand {
 
   @override
   String get description =>
-      'Oxirgi build artefaktlarini yuklaydi. Yiqilsa xavfsiz qayta urinish mumkin.';
+      'Upload the artifacts from the last build. Safe to retry.';
 
   @override
   Future<int> run() async {

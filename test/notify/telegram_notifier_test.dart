@@ -43,10 +43,7 @@ class _Recorder {
         requests.add(req);
         bodies.add(req.body);
         return http.Response(
-          jsonEncode({
-            'ok': ok,
-            if (description != null) 'description': description,
-          }),
+          jsonEncode({'ok': ok, 'description': ?description}),
           status,
         );
       });
@@ -214,7 +211,7 @@ void main() {
       );
       expect(caption, contains('3MB'));
       expect(caption, contains('zip'));
-      expect(caption.toLowerCase(), contains('oching'));
+      expect(caption.toLowerCase(), contains('extract'));
     });
   });
 }

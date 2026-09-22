@@ -6,13 +6,12 @@ import '../core/logger.dart';
 import '../core/process_runner.dart';
 import 'build_artifact.dart';
 
-/// Android artefaktlarini quradi.
+/// Builds the Android artifacts.
 ///
-/// Bu sinfning butun qiymati `flutter` ga uzatiladigan argumentlarni to'g'ri
-/// yig'ishda. Xatolar aynan shu yerda tug'iladi va ular jimgina o'tib
-/// ketadi: masalan `--split-per-abi` tushib qolsa build muvaffaqiyatli
-/// bo'ladi, lekin natijadagi ~112MB lik APK Telegram'da 413 bilan rad
-/// etiladi. Shuning uchun testlar argumentlarni tekshiradi.
+/// The whole value of this class is assembling the right arguments for
+/// `flutter`. That is where the bugs are, and they fail quietly: drop
+/// `--split-per-abi` and the build still succeeds, but the resulting fat APK
+/// is rejected by Telegram with a 413. Hence the tests assert on arguments.
 class AndroidBuilder {
   const AndroidBuilder({required this.runner, required this.logger});
 
@@ -30,8 +29,9 @@ class AndroidBuilder {
 
     final out = <BuildArtifact>[];
 
-    // Tartib muhim: AAB birinchi. Dev oqimida AAB Play'ga yuklangach, APK
-    // yuborishdagi nosozlik deploy'ni yiqitmaydi.
+    // Order matters: AAB first. In the dev flow the AAB is on Play by the
+    // time the APK is sent, so a failed Telegram upload is not a failed
+    // deploy.
     for (final type in [ArtifactType.aab, ArtifactType.apk]) {
       if (!android.artifacts.contains(type)) continue;
       out.add(await _buildOne(
@@ -62,41 +62,41 @@ class AndroidBuilder {
       '--build-number=$buildNumber',
     ];
 
-    // --split-per-abi va --target-platform FAQAT apk uchun; appbundle
-    // barcha ABI ni o'z ichiga oladi va bu bayroqlarni qabul qilmaydi.
+    // --split-per-abi and --target-platform are for apk ONLY; an appbundle
+    // contains every ABI and rejects these flags.
     if (type == ArtifactType.apk) {
       if (android.apk.splitPerAbi) args.add('--split-per-abi');
       final platform = android.apk.targetPlatform;
       if (platform != null) args.add('--target-platform=$platform');
     }
 
-    // Bo'sh dartDefines — hech nima qo'shilmaydi. Bu production build'ning
-    // ta'rifi, "sozlanmagan" degani emas.
+    // Empty dartDefines adds nothing. That is the definition of a
+    // production build here, not a missing configuration.
     for (final e in env.dartDefines.entries) {
       args.add('--dart-define=${e.key}=${e.value}');
     }
     args.addAll(env.buildArgs);
 
-    logger.info('Android ${type.name.toUpperCase()} qurilmoqda ...');
+    logger.info('Building Android ${type.name.toUpperCase()} ...');
     logger.detail('flutter ${args.join(' ')}');
 
     final r = await runner.run('flutter', args, workingDirectory: projectRoot);
     if (!r.ok) {
       throw BuildException(
-        'flutter build ${type.name} yiqildi (kod ${r.exitCode}):\n'
+        'flutter build ${type.name} failed (exit ${r.exitCode}):\n'
         '${r.stderr.trim().isEmpty ? r.stdout.trim() : r.stderr.trim()}',
       );
     }
 
     final path = _artifactPath(projectRoot, type, android);
     if (!File(path).existsSync()) {
-      // flutter 0 qaytargan bo'lsa ham fayl bo'lmasligi mumkin — masalan
-      // --target-platform boshqa nom bergan bo'lsa.
-      throw BuildException('Kutilgan artefakt topilmadi: $path');
+      // flutter can exit 0 and still not produce the file we expect — for
+      // instance when --target-platform changes the output name.
+      throw BuildException('Expected artifact not found: $path');
     }
 
     final artifact = BuildArtifact(type, path);
-    logger.ok('${type.name.toUpperCase()} tayyor (${artifact.humanSize})');
+    logger.ok('${type.name.toUpperCase()} ready (${artifact.humanSize})');
     return artifact;
   }
 
@@ -112,9 +112,8 @@ class AndroidBuilder {
     const dir = 'build/app/outputs/flutter-apk';
     if (!android.apk.splitPerAbi) return '$root/$dir/app-release.apk';
 
-    // --split-per-abi har bir ABI uchun alohida fayl yozadi va nom ABI ni
-    // o'z ichiga oladi. --target-platform berilgan bo'lsa faqat bittasi
-    // quriladi.
+    // --split-per-abi writes one file per ABI, with the ABI in the name.
+    // With --target-platform only one of them is built.
     final abi = _abiFor(android.apk.targetPlatform);
     return '$root/$dir/app-$abi-release.apk';
   }

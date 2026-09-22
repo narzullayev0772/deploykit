@@ -6,14 +6,14 @@ import '../core/build_number.dart';
 import '../core/logger.dart';
 import 'templates.dart';
 
-/// `deploy.yaml` skeletini va yordamchi fayllarni yaratadi.
+/// Writes a `deploy.yaml` skeleton and its companion files.
 class InitCommand extends Command<int> {
   InitCommand({required this.workingDir, required this.logger}) {
     argParser.addFlag(
       'force',
       abbr: 'f',
       negatable: false,
-      help: 'Mavjud deploy.yaml ni qayta yozish.',
+      help: 'Overwrite an existing deploy.yaml.',
     );
   }
 
@@ -25,35 +25,35 @@ class InitCommand extends Command<int> {
 
   @override
   String get description =>
-      'Bo\'sh deploy.yaml, .env.example va .last_build_number yaratadi.';
+      'Create deploy.yaml, .env.example and .last_build_number.';
 
   @override
   Future<int> run() => execute(force: argResults!.flag('force'));
 
-  /// Test'lardan to'g'ridan-to'g'ri chaqiriladi.
+  /// Called directly from tests.
   Future<int> execute({bool force = false}) async {
     final configFile = File('${workingDir.path}/deploy.yaml');
 
     if (configFile.existsSync() && !force) {
-      logger.err('${configFile.path} allaqachon mavjud.');
-      logger.info('Qayta yozish uchun: deploykit init --force');
+      logger.err('${configFile.path} already exists.');
+      logger.info('Use `deploykit init --force` to overwrite it.');
       return 2;
     }
 
     configFile.writeAsStringSync(deployYamlTemplate);
-    logger.ok('deploy.yaml yaratildi');
+    logger.ok('Created deploy.yaml');
 
     File('${workingDir.path}/.env.example')
         .writeAsStringSync(envExampleTemplate);
-    logger.ok('.env.example yaratildi');
+    logger.ok('Created .env.example');
 
     _initBuildNumber();
     _updateGitignore();
 
     logger.blank();
-    logger.info('Keyingi qadamlar:');
-    logger.info('  1. cp .env.example .env  — va qiymatlarni to\'ldiring');
-    logger.info('  2. deploy.yaml dagi app.android_package ni to\'g\'rilang');
+    logger.info('Next steps:');
+    logger.info('  1. cp .env.example .env   — then fill in the values');
+    logger.info('  2. set app.android_package in deploy.yaml');
     logger.info('  3. deploykit doctor --dev');
     logger.info('  4. deploykit publish --dev --dry-run');
     return 0;
@@ -68,14 +68,14 @@ class InitCommand extends Command<int> {
 
     if (!File(pubspec).existsSync()) {
       logger.warn(
-        'pubspec.yaml topilmadi — .last_build_number 0 dan boshlandi.',
+        'No pubspec.yaml found — .last_build_number starts at 0.',
       );
     } else {
-      logger.ok('.last_build_number = $value (pubspec.yaml dan)');
+      logger.ok('.last_build_number = $value (from pubspec.yaml)');
     }
   }
 
-  /// `.env` va `.deploykit/` ni git'dan chetda ushlab turadi.
+  /// Keeps `.env` and `.deploykit/` out of git.
   void _updateGitignore() {
     const needed = ['.env', '.deploykit/'];
     final file = File('${workingDir.path}/.gitignore');
@@ -91,11 +91,11 @@ class InitCommand extends Command<int> {
       buffer.writeln(existing.join('\n'));
       if (existing.last.trim().isNotEmpty) buffer.writeln();
     }
-    buffer.writeln('# deploykit — maxfiy qiymatlar va ishlash holati');
+    buffer.writeln('# deploykit — secrets and local state');
     for (final m in missing) {
       buffer.writeln(m);
     }
     file.writeAsStringSync(buffer.toString());
-    logger.ok('.gitignore yangilandi: ${missing.join(', ')}');
+    logger.ok('Updated .gitignore: ${missing.join(', ')}');
   }
 }

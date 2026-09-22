@@ -1,6 +1,6 @@
 import '../build/build_artifact.dart';
 
-/// Xabarnoma uchun ma'lumotlar.
+/// The data a notification needs.
 class NotifyPayload {
   const NotifyPayload({
     required this.message,

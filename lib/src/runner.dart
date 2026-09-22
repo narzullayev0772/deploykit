@@ -9,7 +9,7 @@ import 'commands/publish_command.dart';
 import 'commands/upload_command.dart';
 import 'core/logger.dart';
 
-/// Barcha buyruqlarni yig'adi va global flaglarni e'lon qiladi.
+/// Assembles the commands and declares the global flags.
 class DeploykitRunner extends CommandRunner<int> {
   DeploykitRunner({Directory? workingDir})
       : _workingDir = workingDir ?? Directory.current,
@@ -39,8 +39,8 @@ class DeploykitRunner extends CommandRunner<int> {
 
   final Directory _workingDir;
 
-  // Global flaglar parse qilinmasdan oldin ham logger kerak bo'ladi, shuning
-  // uchun u kech sozlanadi.
+  // A logger is needed before the global flags are parsed, so it is
+  // configured late.
   final Logger _logger = Logger();
 
   @override

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:deploykit/src/build/android_builder.dart';
+import 'package:deploykit/src/build/build_artifact.dart';
 import 'package:deploykit/src/config/deploy_config.dart';
 import 'package:deploykit/src/core/exceptions.dart';
 import 'package:deploykit/src/core/logger.dart';
@@ -49,7 +50,7 @@ EnvironmentConfig _env({
       notify: null,
     );
 
-Future<(FakeProcessRunner, List<dynamic>)> _build(
+Future<(FakeProcessRunner, List<BuildArtifact>)> _build(
   String root,
   EnvironmentConfig env,
 ) async {

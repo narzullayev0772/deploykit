@@ -2,7 +2,7 @@ import 'dart:io';
 
 import '../config/deploy_config.dart';
 
-/// Qurilgan bitta fayl.
+/// A single produced file.
 class BuildArtifact {
   const BuildArtifact(this.type, this.path);
 
@@ -13,7 +13,7 @@ class BuildArtifact {
 
   int get sizeBytes => file.lengthSync();
 
-  /// Inson o'qiydigan hajm, masalan `46MB`.
+  /// Human-readable size, e.g. `46MB`.
   String get humanSize => '${(sizeBytes / 1024 / 1024).round()}MB';
 
   Map<String, Object?> toJson() => {'type': type.name, 'path': path};

@@ -1,4 +1,4 @@
-/// Qurilishi mumkin bo'lgan artefakt turlari.
+/// The artifact types that can be produced.
 enum ArtifactType {
   aab,
   apk,
@@ -8,15 +8,15 @@ enum ArtifactType {
       ArtifactType.values.where((v) => v.name == s).firstOrNull;
 }
 
-/// Artefakt Telegram chegarasidan oshganda nima qilish.
+/// What to do when an artifact exceeds the Telegram size limit.
 enum OversizePolicy {
-  /// Zip qilib ko'rish; zip ham katta bo'lsa xato.
+  /// Try zipping it; fail if the zip is still too large.
   zip,
 
-  /// Darhol xato.
+  /// Fail immediately.
   fail,
 
-  /// Faylni yubormaslik, faqat matn.
+  /// Send the message without the file.
   skip;
 
   static OversizePolicy? tryParse(String s) =>
@@ -26,7 +26,7 @@ enum OversizePolicy {
 class AppConfig {
   const AppConfig({required this.root, required this.androidPackage});
 
-  /// Flutter loyiha ildizi — `deploy.yaml` joylashgan joyga nisbatan.
+  /// Flutter project root, relative to `deploy.yaml`.
   final String root;
   final String androidPackage;
 }
@@ -34,11 +34,11 @@ class AppConfig {
 class ApkConfig {
   const ApkConfig({this.splitPerAbi = false, this.targetPlatform});
 
-  /// Fat APK ~112MB bo'lgani uchun Telegram'ga yuboriladigan build'da
-  /// har doim `true` bo'lishi kutiladi.
+  /// A fat APK is usually well over 100MB, so any build destined for
+  /// Telegram is expected to set this.
   final bool splitPerAbi;
 
-  /// Masalan `android-arm64`. `null` — barcha ABI.
+  /// For example `android-arm64`. `null` means every ABI.
   final String? targetPlatform;
 }
 
@@ -67,7 +67,7 @@ class AndroidConfig {
 class IosConfig {
   const IosConfig({required this.testflightInternalOnly});
 
-  /// `true` — build tashqi TestFlight'ga chiqmaydi.
+  /// When `true` the build never reaches external TestFlight.
   final bool testflightInternalOnly;
 }
 
@@ -81,10 +81,10 @@ class TelegramConfig {
 
   final String message;
 
-  /// Qaysi artefakt biriktiriladi. `null` — faqat matn.
+  /// Which artifact to attach. `null` sends text only.
   final ArtifactType? attach;
 
-  /// Telegram bot API cheklovi.
+  /// The Telegram bot API limit.
   final int maxSizeMb;
 
   final OversizePolicy onOversize;
@@ -109,17 +109,17 @@ class EnvironmentConfig {
 
   final String name;
 
-  /// Branch tekshiruvi uchun regex. `null` — tekshiruv o'chirilgan.
+  /// Regular expression for the branch guard. `null` disables the check.
   final String? branch;
 
-  /// `--dart-define` juftliklari.
+  /// `--dart-define` pairs.
   ///
-  /// **Bo'sh xarita haqiqiy qiymat**, "sozlanmagan" degani emas: Dart
-  /// tomonidagi `defaultValue` lar allaqachon production qiymatlari, shuning
-  /// uchun production build'ga hech qanday define uzatilmaydi.
+  /// **An empty map is a real value**, not "unconfigured": the `defaultValue`
+  /// of each `fromEnvironment` in the Dart code is already the production
+  /// value, so a production build passes no defines at all.
   final Map<String, String> dartDefines;
 
-  /// `flutter build` ga qo'shiladigan qo'shimcha argumentlar.
+  /// Extra arguments appended to `flutter build`.
   final List<String> buildArgs;
 
   final AndroidConfig? android;
@@ -130,7 +130,7 @@ class EnvironmentConfig {
 class PlayIntegration {
   const PlayIntegration({required this.serviceAccount});
 
-  /// Service-account JSON faylining yo'li.
+  /// Path to the service-account JSON file.
   final String serviceAccount;
 }
 
@@ -145,7 +145,7 @@ class AppStoreIntegration {
   final String keyId;
   final String issuerId;
 
-  /// `.p8` faylining yo'li.
+  /// Path to the `.p8` file.
   final String privateKey;
 
   final String teamId;
