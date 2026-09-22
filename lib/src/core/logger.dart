@@ -2,12 +2,21 @@ import 'dart:io';
 
 /// Terminalga chiqarish. Rang va batafsillik sozlanadi.
 class Logger {
-  Logger({this.color = true, this.verbose = false, IOSink? sink})
-      : _sink = sink ?? stdout;
+  Logger({
+    this.color = true,
+    this.verbose = false,
+    IOSink? sink,
+    IOSink? errSink,
+  })  : _sink = sink ?? stdout,
+        // Xatolar stderr'ga ketadi, lekin testda yo'naltirilishi uchun
+        // u ham inject qilinadi. `sink` berilib `errSink` berilmasa,
+        // ikkalasi ham o'sha yerga yoziladi — test uchun kutilgan xulq.
+        _errSink = errSink ?? sink ?? stderr;
 
   final bool color;
   final bool verbose;
   final IOSink _sink;
+  final IOSink _errSink;
 
   static const _red = '\x1B[0;31m';
   static const _green = '\x1B[0;32m';
@@ -21,7 +30,7 @@ class Logger {
   void info(String m) => _sink.writeln('${_paint(_blue, '[deploykit]')} $m');
   void ok(String m) => _sink.writeln('${_paint(_green, '✓')} $m');
   void warn(String m) => _sink.writeln('${_paint(_yellow, '!')} $m');
-  void err(String m) => stderr.writeln('${_paint(_red, '✗')} $m');
+  void err(String m) => _errSink.writeln('${_paint(_red, '✗')} $m');
 
   /// Faqat `--verbose` bilan ko'rinadi — masalan bajarilayotgan buyruqlar.
   void detail(String m) {
