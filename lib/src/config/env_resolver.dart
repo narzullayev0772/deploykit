@@ -55,10 +55,13 @@ class EnvResolver {
   Object? resolveDeep(Object? node, {String path = ''}) {
     if (node is String) return resolve(node, path: path.isEmpty ? '<root>' : path);
     if (node is Map) {
-      return node.map((k, v) => MapEntry(
-            k,
-            resolveDeep(v, path: path.isEmpty ? '$k' : '$path.$k'),
-          ));
+      return <String, Object?>{
+        for (final e in node.entries)
+          e.key.toString(): resolveDeep(
+            e.value,
+            path: path.isEmpty ? '${e.key}' : '$path.${e.key}',
+          ),
+      };
     }
     if (node is List) {
       return [
