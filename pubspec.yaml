@@ -1,0 +1,31 @@
+name: deploykit
+description: Deploy Flutter apps to Google Play and App Store Connect from a single deploy.yaml configuration file.
+version: 0.1.0
+repository: https://github.com/narzullayev0772/deploykit
+
+topics:
+  - cli
+  - flutter
+  - deployment
+  - ci
+
+environment:
+  sdk: ^3.8.0
+
+executables:
+  deploykit: deploykit
+
+dependencies:
+  args: ^2.7.0
+  yaml: ^3.1.4
+  http: ^1.6.0
+  googleapis: ^17.0.0
+  googleapis_auth: ^2.3.4
+  path: ^1.9.1
+  archive: ^4.3.0
+  collection: ^1.19.1
+
+dev_dependencies:
+  test: ^1.32.0
+  mocktail: ^1.0.5
+  lints: ^6.0.0
